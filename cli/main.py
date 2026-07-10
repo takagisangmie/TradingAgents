@@ -31,6 +31,7 @@ from cli.utils import (
     confirm_ollama_endpoint,
     detect_asset_type,
     ensure_api_key,
+    ensure_tushare_token,
     get_ticker,
     prompt_openai_compatible_url,
     resolve_backend_url,
@@ -63,6 +64,7 @@ app = typer.Typer(
 class MessageBuffer:
     # Fixed teams that always run (not user-selectable)
     FIXED_AGENTS = {
+        "Information Security": ["Information Auditor"],
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
         "Trading Team": ["Trader"],
         "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
@@ -85,6 +87,7 @@ class MessageBuffer:
         "sentiment_report": ("social", "Sentiment Analyst"),
         "news_report": ("news", "News Analyst"),
         "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
+        "information_audit_report": (None, "Information Auditor"),
         "investment_plan": (None, "Research Manager"),
         "trader_investment_plan": (None, "Trader"),
         "final_trade_decision": (None, "Portfolio Manager"),
@@ -193,6 +196,7 @@ class MessageBuffer:
                 "sentiment_report": "Social Sentiment",
                 "news_report": "News Analysis",
                 "fundamentals_report": "Fundamentals Analysis",
+                "information_audit_report": "Information Security Audit",
                 "investment_plan": "Research Team Decision",
                 "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",
@@ -206,6 +210,10 @@ class MessageBuffer:
 
     def _update_final_report(self):
         report_parts = []
+
+        if self.report_sections.get("information_audit_report"):
+            report_parts.append("## Information Security Audit")
+            report_parts.append(self.report_sections["information_audit_report"])
 
         # Analyst Team Reports - use .get() to handle missing sections
         analyst_sections = ["market_report", "sentiment_report", "news_report", "fundamentals_report"]
@@ -757,6 +765,17 @@ def display_complete_report(final_state):
     console.print()
     console.print(Rule("Complete Analysis Report", style="bold green"))
 
+    if final_state.get("information_audit_report"):
+        console.print(Panel("[bold]0. Information Security Audit[/bold]", border_style="yellow"))
+        console.print(
+            Panel(
+                Markdown(final_state["information_audit_report"]),
+                title="Information Auditor",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
+
     # I. Analyst Team Reports
     analysts = []
     if final_state.get("market_report"):
@@ -845,7 +864,7 @@ def update_analyst_statuses(message_buffer, chunk, wall_time_tracker=None):
     - Analysts with reports = completed
     - First analyst without report = in_progress
     - Remaining analysts without reports = pending
-    - When all analysts done, set Bull Researcher to in_progress
+    - When all analysts are done, start the Information Auditor
     """
     selected = message_buffer.selected_analysts
     found_active = False
@@ -875,13 +894,13 @@ def update_analyst_statuses(message_buffer, chunk, wall_time_tracker=None):
         else:
             message_buffer.update_agent_status(agent_name, "pending")
 
-    # When all analysts complete, transition research team to in_progress
+    # When all analysts complete, run the deterministic information audit first.
     if (
         not found_active
         and selected
-        and message_buffer.agent_status.get("Bull Researcher") == "pending"
+        and message_buffer.agent_status.get("Information Auditor") == "pending"
     ):
-        message_buffer.update_agent_status("Bull Researcher", "in_progress")
+        message_buffer.update_agent_status("Information Auditor", "in_progress")
 
 def extract_content_string(content):
     """Extract string content from various message formats.
@@ -993,6 +1012,8 @@ def run_analysis(checkpoint: bool | None = None):
     selections = get_user_selections()
 
     config = _build_run_config(selections, checkpoint)
+    if config.get("market_profile") == "a_share":
+        ensure_tushare_token()
 
     # Create stats callback handler for tracking LLM/tool calls
     stats_handler = StatsCallbackHandler()
@@ -1142,6 +1163,14 @@ def run_analysis(checkpoint: bool | None = None):
                 chunk,
                 wall_time_tracker=analyst_wall_time_tracker,
             )
+
+            if chunk.get("information_audit_report"):
+                message_buffer.update_report_section(
+                    "information_audit_report",
+                    chunk["information_audit_report"],
+                )
+                message_buffer.update_agent_status("Information Auditor", "completed")
+                message_buffer.update_agent_status("Bull Researcher", "in_progress")
 
             # Research Team - Handle Investment Debate State
             if chunk.get("investment_debate_state"):

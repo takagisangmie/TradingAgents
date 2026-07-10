@@ -1,3 +1,5 @@
+import json
+
 from .alpha_vantage_common import _make_api_request, format_datetime_for_api
 
 
@@ -53,7 +55,10 @@ def get_global_news(curr_date, look_back_days: int = 7, limit: int = 50) -> dict
     return _make_api_request("NEWS_SENTIMENT", params)
 
 
-def get_insider_transactions(symbol: str) -> dict[str, str] | str:
+def get_insider_transactions(
+    symbol: str,
+    curr_date: str | None = None,
+) -> dict[str, str] | str:
     """Returns latest and historical insider transactions by key stakeholders.
 
     Covers transactions by founders, executives, board members, etc.
@@ -69,4 +74,17 @@ def get_insider_transactions(symbol: str) -> dict[str, str] | str:
         "symbol": symbol,
     }
 
-    return _make_api_request("INSIDER_TRANSACTIONS", params)
+    result = _make_api_request("INSIDER_TRANSACTIONS", params)
+    if not curr_date or not isinstance(result, str):
+        return result
+    try:
+        payload = json.loads(result)
+    except json.JSONDecodeError:
+        return result
+    if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+        payload["data"] = [
+            row
+            for row in payload["data"]
+            if str(row.get("transaction_date") or row.get("filing_date") or "") <= curr_date
+        ]
+    return json.dumps(payload)

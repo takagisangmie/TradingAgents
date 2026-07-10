@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+## [Unreleased]
+
+### Added
+
+- A-share-first market profile backed by the documented Tushare HTTP API for
+  prices, indicators, point-in-time financials, news, macro data, identity, and
+  CSI 300-relative outcome evaluation.
+- Deterministic external-content auditing with prompt-injection redaction and a
+  dedicated Information Auditor graph report.
+- Best-effort Xueqiu and TaoGuBa public-page sentiment adapters with explicit
+  CAPTCHA/WAF/rate-limit degradation and optional user-session cookies.
+
+### Changed
+
+- Default symbols, output language, benchmark, prompts, and trading constraints
+  now target mainland China A-shares.
+- Default LLM provider is BigModel China (`glm-cn`), with `glm-5.2` used for
+  both quick and deep reasoning agents.
+- Historical sentiment runs no longer inject current community posts when a
+  historical snapshot is unavailable.
+
 ## [0.3.1] — 2026-07-05
 
 Correctness and stability patch: data look-ahead, graph-router crash-safety,

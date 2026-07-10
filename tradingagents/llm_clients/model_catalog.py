@@ -18,6 +18,7 @@ _CUSTOM_ONLY: dict[str, list[ModelOption]] = {
 # All GLM 4.7+ entries support thinking mode via thinking={"type":"enabled"}.
 _GLM_MODELS: dict[str, list[ModelOption]] = {
     "quick": [
+        ("GLM-5.2 - Latest flagship, 1M ctx", "glm-5.2"),
         ("GLM-5-Turbo - Fast, switchable thinking modes", "glm-5-turbo"),
         ("GLM-4.7 - Previous-gen flagship", "glm-4.7"),
         ("GLM-4.5-Air - Lightweight, cost-efficient", "glm-4.5-air"),

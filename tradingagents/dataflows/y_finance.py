@@ -444,13 +444,23 @@ def get_income_statement(
 
 
 def get_insider_transactions(
-    ticker: Annotated[str, "ticker symbol of the company"]
+    ticker: Annotated[str, "ticker symbol of the company"],
+    curr_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None,
 ):
     """Get insider transactions data from yfinance."""
     canonical = normalize_symbol(ticker)
     try:
         ticker_obj = yf.Ticker(canonical)
         data = yf_retry(lambda: ticker_obj.insider_transactions)
+
+        if curr_date and data is not None and not data.empty:
+            date_column = next(
+                (column for column in data.columns if "date" in str(column).lower()),
+                None,
+            )
+            if date_column is not None:
+                parsed = pd.to_datetime(data[date_column], errors="coerce")
+                data = data[parsed <= pd.Timestamp(curr_date)]
 
         # Empty is normal here (many valid symbols have no insider filings),
         # so report it plainly rather than treating the symbol as invalid.

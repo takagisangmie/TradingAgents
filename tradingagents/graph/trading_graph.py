@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -81,7 +82,7 @@ class TradingAgentsGraph:
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
         """
         self.debug = debug
-        self.config = config or DEFAULT_CONFIG
+        self.config = deepcopy(config or DEFAULT_CONFIG)
         self.callbacks = callbacks or []
 
         # Update the interface's config
@@ -187,6 +188,15 @@ class TradingAgentsGraph:
 
     def _create_tool_nodes(self) -> dict[str, ToolNode]:
         """Create tool nodes for different data sources using abstract methods."""
+        config = getattr(self, "config", {}) if self is not None else {}
+        news_tools = [
+            get_news,
+            get_global_news,
+            get_insider_transactions,
+            get_macro_indicators,
+        ]
+        if config.get("enable_prediction_markets", False):
+            news_tools.append(get_prediction_markets)
         return {
             "market": ToolNode(
                 [
@@ -207,14 +217,7 @@ class TradingAgentsGraph:
                 ]
             ),
             "news": ToolNode(
-                [
-                    # News and insider information
-                    get_news,
-                    get_global_news,
-                    get_insider_transactions,
-                    get_macro_indicators,
-                    get_prediction_markets,
-                ]
+                news_tools
             ),
             "fundamentals": ToolNode(
                 [
@@ -269,20 +272,41 @@ class TradingAgentsGraph:
             # Normalize so the realized-return lookup hits the same instrument
             # the analysis priced (e.g. XAUUSD -> GC=F) (#984). The benchmark is
             # already a canonical Yahoo symbol from ``_resolve_benchmark``.
-            stock = yf.Ticker(normalize_symbol(ticker)).history(start=trade_date, end=end_str)
-            bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
+            config = getattr(self, "config", {}) if self is not None else {}
+            if config.get("market_profile") == "a_share":
+                from tradingagents.dataflows.tushare import fetch_close_series
 
-            if len(stock) < 2 or len(bench) < 2:
+                stock_close = fetch_close_series(ticker, trade_date, end_str)
+                benchmark_close = fetch_close_series(
+                    benchmark,
+                    trade_date,
+                    end_str,
+                    allow_index=True,
+                )
+            else:
+                stock = yf.Ticker(normalize_symbol(ticker)).history(
+                    start=trade_date,
+                    end=end_str,
+                )
+                bench = yf.Ticker(benchmark).history(start=trade_date, end=end_str)
+                stock_close = stock["Close"] if not stock.empty else stock
+                benchmark_close = bench["Close"] if not bench.empty else bench
+
+            if len(stock_close) < 2 or len(benchmark_close) < 2:
                 return None, None, None
 
-            actual_days = min(holding_days, len(stock) - 1, len(bench) - 1)
+            actual_days = min(
+                holding_days,
+                len(stock_close) - 1,
+                len(benchmark_close) - 1,
+            )
             raw = float(
-                (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
-                / stock["Close"].iloc[0]
+                (stock_close.iloc[actual_days] - stock_close.iloc[0])
+                / stock_close.iloc[0]
             )
             bench_ret = float(
-                (bench["Close"].iloc[actual_days] - bench["Close"].iloc[0])
-                / bench["Close"].iloc[0]
+                (benchmark_close.iloc[actual_days] - benchmark_close.iloc[0])
+                / benchmark_close.iloc[0]
             )
             alpha = raw - bench_ret
             return raw, alpha, actual_days
@@ -342,7 +366,14 @@ class TradingAgentsGraph:
         path and the CLI call this so the resolved identity reaches the whole
         graph regardless of entry point.
         """
-        identity = resolve_instrument_identity(ticker)
+        if self.config.get("market_profile") == "a_share" and asset_type == "stock":
+            from tradingagents.dataflows.tushare import (
+                resolve_instrument_identity as resolve_a_share,
+            )
+
+            identity = resolve_a_share(ticker)
+        else:
+            identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
     def _run_signature(self, asset_type: str) -> str:
@@ -357,6 +388,8 @@ class TradingAgentsGraph:
             f"debate={self.config['max_debate_rounds']}",
             f"risk={self.config['max_risk_discuss_rounds']}",
             f"asset={asset_type}",
+            f"market={self.config.get('market_profile', 'global')}",
+            f"prediction={self.config.get('enable_prediction_markets', False)}",
         ])
 
     def propagate(self, company_name, trade_date, asset_type: str = "stock"):
@@ -490,6 +523,7 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            "information_audit_report": final_state.get("information_audit_report", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

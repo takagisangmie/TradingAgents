@@ -11,7 +11,7 @@ from tradingagents.llm_clients.model_catalog import get_model_options
 
 console = Console()
 
-TICKER_INPUT_EXAMPLES = "SPY, 0700.HK, BTC-USD"
+TICKER_INPUT_EXAMPLES = "600519.SH, 000001.SZ, 300750.SZ"
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -45,7 +45,7 @@ def get_ticker() -> str:
         f"Enter ticker symbol (e.g. {TICKER_INPUT_EXAMPLES}):",
         validate=lambda x: (
             is_valid_ticker_input(x)
-            or "Please enter a valid ticker symbol, e.g. AAPL, 000404.SZ, 0700.HK, GC=F."
+            or "Please enter a valid ticker symbol, e.g. 600519.SH, 000001.SZ, 300750.SZ."
         ),
         style=questionary.Style(
             [
@@ -59,7 +59,7 @@ def get_ticker() -> str:
         console.print("\n[red]No ticker symbol provided. Exiting...[/red]")
         exit(1)
 
-    return normalize_ticker_symbol(ticker) if ticker.strip() else "SPY"
+    return normalize_ticker_symbol(ticker) if ticker.strip() else "000300.SH"
 
 
 def normalize_ticker_symbol(ticker: str) -> str:
@@ -71,6 +71,14 @@ def normalize_ticker_symbol(ticker: str) -> str:
     plain upper-case if the data layer is unavailable.
     """
     try:
+        from tradingagents.dataflows.tushare import normalize_ts_code
+
+        value = ticker.strip().upper()
+        if value.isdigit() or value.startswith(("SH", "SZ", "BJ")) or value.endswith(
+            (".SH", ".SZ", ".BJ")
+        ):
+            return normalize_ts_code(value)
+
         from tradingagents.dataflows.symbol_utils import normalize_symbol
 
         return normalize_symbol(ticker)
@@ -346,13 +354,13 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     """
     ollama_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
     return [
+        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
         ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
         ("Anthropic", "anthropic", "https://api.anthropic.com/"),
         ("xAI", "xai", "https://api.x.ai/v1"),
         ("DeepSeek", "deepseek", "https://api.deepseek.com"),
         ("Qwen", "qwen", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
-        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
         ("MiniMax", "minimax", "https://api.minimax.io/v1"),
         ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),
         ("Mistral", "mistral", "https://api.mistral.ai/v1"),
@@ -500,12 +508,12 @@ def ask_glm_region() -> tuple[str, str]:
         "Select GLM platform:",
         choices=[
             questionary.Choice(
-                "Z.AI — api.z.ai (international, uses ZHIPU_API_KEY)",
-                value=("glm", "https://api.z.ai/api/paas/v4/"),
-            ),
-            questionary.Choice(
                 "BigModel — open.bigmodel.cn (China, uses ZHIPU_CN_API_KEY)",
                 value=("glm-cn", "https://open.bigmodel.cn/api/paas/v4/"),
+            ),
+            questionary.Choice(
+                "Z.AI — api.z.ai (international, uses ZHIPU_API_KEY)",
+                value=("glm", "https://api.z.ai/api/paas/v4/"),
             ),
         ],
         style=questionary.Style([
@@ -650,13 +658,47 @@ def ensure_api_key(provider: str) -> str | None:
     return key
 
 
+def ensure_tushare_token() -> str | None:
+    """Ensure the A-share data token is available without ever logging it."""
+    existing = os.environ.get("TUSHARE_TOKEN")
+    if existing:
+        return existing
+
+    console.print("\n[yellow]TUSHARE_TOKEN is required for live A-share data.[/yellow]")
+    token = questionary.password(
+        "Paste your TUSHARE_TOKEN (will be saved to .env):",
+        style=questionary.Style([
+            ("text", "fg:cyan"),
+            ("highlighted", "noinherit"),
+        ]),
+    ).ask()
+    if not token:
+        console.print(
+            "[red]Skipped. Tushare-backed analysis will fail until TUSHARE_TOKEN is set.[/red]"
+        )
+        return None
+
+    env_path = find_dotenv(usecwd=True) or str(Path.cwd() / ".env")
+    Path(env_path).touch(exist_ok=True)
+    set_key(env_path, "TUSHARE_TOKEN", token)
+    os.environ["TUSHARE_TOKEN"] = token
+    try:
+        from tradingagents.dataflows.tushare import clear_client_cache
+
+        clear_client_cache()
+    except ImportError:
+        pass
+    console.print(f"[green]Saved TUSHARE_TOKEN to {env_path}[/green]")
+    return token
+
+
 def ask_output_language() -> str:
     """Ask for report output language."""
     choice = questionary.select(
         "Select Output Language:",
         choices=[
-            questionary.Choice("English (default)", "English"),
-            questionary.Choice("Chinese (中文)", "Chinese"),
+            questionary.Choice("Chinese (中文, default)", "Simplified Chinese"),
+            questionary.Choice("English", "English"),
             questionary.Choice("Japanese (日本語)", "Japanese"),
             questionary.Choice("Korean (한국어)", "Korean"),
             questionary.Choice("Hindi (हिन्दी)", "Hindi"),
@@ -675,14 +717,14 @@ def ask_output_language() -> str:
         ]),
     ).ask()
 
-    # Output language has a sensible default, so a cancel falls back to English
+    # Output language has a sensible default, so a cancel falls back to Chinese
     # rather than exiting the run (unlike the required model/provider prompts).
     if choice is None:
-        return "English"
+        return "Simplified Chinese"
     if choice == "custom":
         return (questionary.text(
             "Enter language name (e.g. Turkish, Vietnamese, Thai, Indonesian):",
             validate=lambda x: len(x.strip()) > 0 or "Please enter a language name.",
-        ).ask() or "").strip() or "English"
+        ).ask() or "").strip() or "Simplified Chinese"
 
     return choice

@@ -43,6 +43,7 @@ __all__ = [
     "resolve_instrument_identity",
     "get_instrument_context_from_state",
     "get_language_instruction",
+    "get_market_profile_instruction",
     "create_msg_delete",
 ]
 
@@ -63,6 +64,22 @@ def get_language_instruction() -> str:
     if lang.strip().lower() == "english":
         return ""
     return f" Write your entire response in {lang}."
+
+
+def get_market_profile_instruction() -> str:
+    """Return market-specific constraints shared by all decision agents."""
+    from tradingagents.dataflows.config import get_config
+
+    if get_config().get("market_profile") != "a_share":
+        return ""
+    return (
+        " This run targets mainland China A-shares. Use CNY, respect T+1 equity "
+        "settlement and 100-share board lots, and do not assume a universal price "
+        "limit: main-board, ChiNext/STAR, Beijing Exchange, IPO, and ST rules differ. "
+        "Do not propose naked short selling for an ordinary cash account. For a "
+        "historical analysis, use only information publicly disclosed by the analysis "
+        "date and flag any unavailable point-in-time field."
+    )
 
 
 def _clean_identity_value(value: Any) -> str | None:
@@ -212,6 +229,5 @@ def create_msg_delete():
         return {"messages": removal_operations + [placeholder]}
 
     return delete_messages
-
 
 

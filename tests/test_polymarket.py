@@ -122,7 +122,8 @@ class PolymarketRoutingTests(unittest.TestCase):
             clear=False,
         ):
             out = interface.route_to_vendor("get_prediction_markets", "fed", 5)
-        self.assertEqual(out, "POLY_OK")
+        self.assertIn("POLY_OK", out)
+        self.assertIn("UNTRUSTED_EXTERNAL_DATA", out)
 
 
 if __name__ == "__main__":

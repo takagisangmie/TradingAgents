@@ -17,6 +17,7 @@ _AGENTS_DIR = Path(__file__).resolve().parents[1] / "tradingagents" / "agents"
 # Every node whose text reaches the saved report. If you add a report-producing
 # agent, add it here — and make it call get_language_instruction().
 REPORT_AGENTS = [
+    "analysts/information_auditor.py",
     "analysts/market_analyst.py",
     "analysts/news_analyst.py",
     "analysts/fundamentals_analyst.py",

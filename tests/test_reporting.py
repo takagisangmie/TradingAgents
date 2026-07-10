@@ -48,3 +48,12 @@ def test_save_reports_defaults_under_results_dir(tmp_path):
     assert out.exists()
     assert out.parent.parent.name == "reports"  # results_dir/reports/AAPL_<stamp>/...
     assert out.parent.name.startswith("AAPL_")
+
+
+@pytest.mark.unit
+def test_write_report_tree_persists_information_audit(tmp_path):
+    state = _state()
+    state["information_audit_report"] = "AUDIT PASS"
+    write_report_tree(state, "600519.SH", tmp_path)
+    assert (tmp_path / "0_information_audit" / "audit.md").read_text() == "AUDIT PASS"
+    assert "AUDIT PASS" in (tmp_path / "complete_report.md").read_text()

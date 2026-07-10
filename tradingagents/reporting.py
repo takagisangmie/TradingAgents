@@ -16,6 +16,14 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
     save_path.mkdir(parents=True, exist_ok=True)
     sections = []
 
+    # 0. Information security and source quality
+    if final_state.get("information_audit_report"):
+        audit_dir = save_path / "0_information_audit"
+        audit_dir.mkdir(exist_ok=True)
+        audit_text = final_state["information_audit_report"]
+        (audit_dir / "audit.md").write_text(audit_text, encoding="utf-8")
+        sections.append(f"## 0. Information Security Audit\n\n{audit_text}")
+
     # 1. Analysts
     analysts_dir = save_path / "1_analysts"
     analyst_parts = []

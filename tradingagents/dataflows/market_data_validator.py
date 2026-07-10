@@ -11,11 +11,14 @@ claim. Deterministic, no LLM involved.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 
 import pandas as pd
 from stockstats import wrap
 
+from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.stockstats_utils import load_ohlcv
+from tradingagents.dataflows.tushare import fetch_daily_frame, normalize_ts_code
 
 # A fixed, common indicator set so the snapshot is the same shape every run.
 DEFAULT_SNAPSHOT_INDICATORS: tuple[str, ...] = (
@@ -32,7 +35,28 @@ def _verified_rows(symbol: str, curr_date: str) -> pd.DataFrame:
     look-ahead rows, but we re-apply the cutoff defensively — this is a
     verification path, so it must not trust its input to be pre-filtered.
     """
-    data = load_ohlcv(symbol, curr_date)
+    use_tushare = get_config().get("market_profile") == "a_share"
+    try:
+        normalize_ts_code(symbol)
+    except ValueError:
+        use_tushare = False
+
+    if use_tushare:
+        end = datetime.strptime(curr_date, "%Y-%m-%d")
+        start = end - timedelta(days=450)
+        data = fetch_daily_frame(symbol, start.strftime("%Y-%m-%d"), curr_date).rename(
+            columns={
+                "trade_date": "Date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "vol": "Volume",
+            }
+        )
+        data["Date"] = pd.to_datetime(data["Date"], format="%Y%m%d")
+    else:
+        data = load_ohlcv(symbol, curr_date)
     if data is None or data.empty:
         raise ValueError(f"No OHLCV data available for {symbol}.")
 

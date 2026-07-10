@@ -48,6 +48,9 @@ class TestLoadOhlcvNoPoison(unittest.TestCase):
 
 @pytest.mark.unit
 class TestRouteToVendorSentinel(unittest.TestCase):
+    def setUp(self):
+        set_config({"data_vendors": {"core_stock_apis": "default"}})
+
     def test_no_data_from_all_vendors_returns_sentinel(self):
         def raises_no_data(symbol, *a, **k):
             raise NoMarketDataError(symbol, "GC=F", "no rows")

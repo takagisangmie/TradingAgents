@@ -59,6 +59,9 @@ class AgentState(MessagesState):
         str, "Report from the News Researcher of current world affairs"
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
+    information_audit_report: Annotated[
+        str, "Deterministic security and source-quality review of collected information"
+    ]
 
     # researcher team discussion step
     investment_debate_state: Annotated[

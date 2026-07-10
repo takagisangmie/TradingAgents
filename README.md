@@ -27,7 +27,16 @@
 
 # TradingAgents: Multi-Agents LLM Financial Trading Framework
 
+This maintained fork defaults to mainland China A-shares: Tushare supplies
+point-in-time market/fundamental/news data, Xueqiu and TaoGuBa adapters provide
+best-effort community sentiment, and a deterministic Information Auditor scans
+external content before it reaches an LLM. See [A-share setup](docs/A_SHARE.md)
+and [architecture](docs/ARCHITECTURE.md).
+
 ## News
+- [2026-07] **A-share foundation**: Tushare-first data routing, CSI 300 benchmark,
+  Xueqiu/TaoGuBa sentiment adapters, prompt-injection redaction, and an
+  Information Auditor report in every run.
 - [2026-07] **TradingAgents v0.3.1** released with correctness and stability fixes: Alpha Vantage look-ahead filtering, graph-router crash-safety, graph-shape-aware checkpoint resume, working crypto sentiment sources, a configurable LLM retry budget, Bedrock API-key auth, and Claude Sonnet 5 / Fable 5 support. See [CHANGELOG.md](CHANGELOG.md) for the full list.
 - [2026-06] **TradingAgents v0.3.0** released with a verified data-access contract, an expanded provider registry (NVIDIA, Kimi, Groq, Mistral, Bedrock, and any OpenAI-compatible endpoint), FRED and Polymarket data vendors, a current-generation model catalog, and a CI gate.
 - [2026-05] **TradingAgents v0.2.5** released with the grounded Sentiment Analyst, GPT-5.5 etc. model coverage, Qwen/GLM/MiniMax dual-region support, `TRADINGAGENTS_*` env-var configurability with API-key auto-detection, remote Ollama support, non-US alpha benchmarks, and ticker path-traversal hardening.
@@ -71,7 +80,8 @@ Our framework decomposes complex trading tasks into specialized roles.
 
 ### Analyst Team
 - Fundamentals Analyst: Evaluates company financials and performance metrics, identifying intrinsic values and potential red flags.
-- Sentiment Analyst: Aggregates news headlines, StockTwits, and Reddit chatter into a single sentiment read to gauge short-term market mood.
+- Sentiment Analyst: Aggregates Tushare news and best-effort Xueqiu/TaoGuBa discussion snapshots for A-share sentiment. Historical runs never substitute current community posts.
+- Information Auditor: Scans external text for prompt injection, instruction override, secret-exfiltration requests, source failures, and risk-control pages before research debate begins.
 - News Analyst: Monitors global news and macroeconomic indicators, interpreting the impact of events on market conditions.
 - Technical Analyst: Utilizes technical indicators (like MACD and RSI) to detect trading patterns and forecast price movements.
 
@@ -95,7 +105,7 @@ Our framework decomposes complex trading tasks into specialized roles.
 
 ### Risk Management and Portfolio Manager
 - Continuously evaluates portfolio risk by assessing market volatility, liquidity, and other risk factors. The risk management team evaluates and adjusts trading strategies, providing assessment reports to the Portfolio Manager for final decision.
-- The Portfolio Manager approves/rejects the transaction proposal. If approved, the order will be sent to the simulated exchange and executed.
+- The Portfolio Manager approves/rejects the transaction proposal. This repository produces research decisions; it does not submit or simulate broker orders.
 
 <p align="center">
   <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
@@ -107,7 +117,7 @@ Our framework decomposes complex trading tasks into specialized roles.
 
 Clone TradingAgents:
 ```bash
-git clone https://github.com/TauricResearch/TradingAgents.git
+git clone https://github.com/takagisangmie/TradingAgents.git
 cd TradingAgents
 ```
 
@@ -140,6 +150,7 @@ docker compose --profile ollama run --rm tradingagents-ollama
 TradingAgents supports multiple LLM providers. Set the API key for your chosen provider:
 
 ```bash
+export TUSHARE_TOKEN=...           # Required by the default A-share data profile
 export OPENAI_API_KEY=...          # OpenAI (GPT)
 export GOOGLE_API_KEY=...          # Google (Gemini)
 export ANTHROPIC_API_KEY=...       # Anthropic (Claude)
@@ -148,12 +159,21 @@ export DEEPSEEK_API_KEY=...        # DeepSeek
 export DASHSCOPE_API_KEY=...       # Qwen — International (dashscope-intl.aliyuncs.com)
 export DASHSCOPE_CN_API_KEY=...    # Qwen — China (dashscope.aliyuncs.com)
 export ZHIPU_API_KEY=...           # GLM via Z.AI (international)
-export ZHIPU_CN_API_KEY=...        # GLM via BigModel (China, open.bigmodel.cn)
+export ZHIPU_CN_API_KEY=...        # Default LLM: GLM-5.2 via BigModel China
 export MINIMAX_API_KEY=...         # MiniMax — Global (api.minimax.io)
 export MINIMAX_CN_API_KEY=...      # MiniMax — China (api.minimaxi.com)
 export OPENROUTER_API_KEY=...      # OpenRouter
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
 ```
+
+Tushare is called through its documented HTTP API, so no separate Tushare SDK
+is required. API permissions depend on your Tushare account/points; permission
+or rate-limit responses are surfaced in the Information Auditor report.
+
+The maintained A-share profile defaults both reasoning tiers to `glm-5.2` on
+BigModel China (`llm_provider: "glm-cn"`). Set `ZHIPU_CN_API_KEY` to use this
+default. For the international Z.AI endpoint, override the provider with `glm`
+and set `ZHIPU_API_KEY`.
 
 For Azure OpenAI, copy `.env.enterprise.example` to `.env.enterprise` and fill in your credentials.
 
@@ -179,13 +199,16 @@ You will see a screen where you can select your desired tickers, analysis date, 
 
 ### Markets and tickers
 
-TradingAgents works with any market Yahoo Finance covers, using the exchange-suffixed ticker. Company identity and the alpha benchmark resolve automatically per market.
+The default `a_share` profile targets mainland China equities and uses Tushare
+codes. Bare six-digit inputs are normalized automatically.
 
-- US: `AAPL`, `SPY`
-- Hong Kong: `0700.HK` · Tokyo: `7203.T` · London: `AZN.L`
-- India: `RELIANCE.NS`, `.BO` · Canada: `.TO` · Australia: `.AX`
-- China A-shares: Shanghai `.SS`, Shenzhen `.SZ` (e.g. `600519.SS` for Kweichow Moutai)
-- Crypto: `BTC-USD`, `ETH-USD`
+- Shanghai: `600519.SH`, `688981.SH`
+- Shenzhen/ChiNext: `000001.SZ`, `300750.SZ`
+- Beijing Exchange: `830799.BJ`
+- Benchmark: `000300.SH` (CSI 300)
+
+Legacy global vendors remain available by setting `market_profile="global"`
+and explicitly choosing `yfinance` or `alpha_vantage` in `data_vendors`.
 
 <p align="center">
   <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
@@ -218,7 +241,7 @@ from tradingagents.default_config import DEFAULT_CONFIG
 ta = TradingAgentsGraph(debug=True, config=DEFAULT_CONFIG.copy())
 
 # forward propagate
-_, decision = ta.propagate("NVDA", "2026-01-15")
+_, decision = ta.propagate("600519.SH", "2026-01-15")
 print(decision)
 ```
 
@@ -229,13 +252,13 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # e.g. openai, google, anthropic, deepseek, groq, ollama; openai_compatible covers any OpenAI-compatible endpoint (vLLM, LM Studio, llama.cpp, ...)
-config["deep_think_llm"] = "gpt-5.5"     # Model for complex reasoning
-config["quick_think_llm"] = "gpt-5.4-mini" # Model for quick tasks
+config["llm_provider"] = "glm-cn"       # BigModel China; use "glm" for international Z.AI
+config["deep_think_llm"] = "glm-5.2"    # Model for complex reasoning
+config["quick_think_llm"] = "glm-5.2"   # Model for quick tasks
 config["max_debate_rounds"] = 2
 
 ta = TradingAgentsGraph(debug=True, config=config)
-_, decision = ta.propagate("NVDA", "2026-01-15")
+_, decision = ta.propagate("600519.SH", "2026-01-15")
 print(decision)
 ```
 
@@ -247,7 +270,7 @@ TradingAgents persists two kinds of state across runs.
 
 ### Decision log
 
-The decision log is always on. Each completed run appends its decision to `~/.tradingagents/memory/trading_memory.md`. On the next run for the same ticker, TradingAgents fetches the realised return (raw and alpha vs SPY), generates a one-paragraph reflection, and injects the most recent same-ticker decisions plus recent cross-ticker lessons into the Portfolio Manager prompt, so each analysis carries forward what worked and what didn't.
+The decision log is always on. Each completed run appends its decision to `~/.tradingagents/memory/trading_memory.md`. On the next run for the same ticker, TradingAgents fetches the realised return (raw and alpha vs CSI 300 for the default A-share profile), generates a one-paragraph reflection, and injects recent lessons into the Portfolio Manager prompt.
 
 Override the path with `TRADINGAGENTS_MEMORY_LOG_PATH`.
 
@@ -258,30 +281,30 @@ Checkpoint resume is opt-in via `--checkpoint`. When enabled, LangGraph saves st
 Per-ticker SQLite databases live at `~/.tradingagents/cache/checkpoints/<TICKER>.db` (override the base with `TRADINGAGENTS_CACHE_DIR`). Use `--clear-checkpoints` to reset all of them before a run.
 
 ```bash
-tradingagents analyze --checkpoint           # enable for this run
-tradingagents analyze --clear-checkpoints    # reset before running
+tradingagents --checkpoint           # enable for this run
+tradingagents --clear-checkpoints    # reset before running
 ```
 
 ```python
 config = DEFAULT_CONFIG.copy()
 config["checkpoint_enabled"] = True
 ta = TradingAgentsGraph(config=config)
-_, decision = ta.propagate("NVDA", "2026-01-15")
+_, decision = ta.propagate("600519.SH", "2026-01-15")
 ```
 
 ## Reproducibility
 
 TradingAgents is LLM-driven, so two runs of the same ticker and date can differ. This is expected for a research tool built on language models, not a defect. The variation comes from a few distinct sources, and it helps to separate them.
 
-Language model sampling is non-deterministic. Even at a fixed temperature, providers do not guarantee byte-identical output across calls, and reasoning models (the default GPT-5.x family, and any thinking-mode model) vary the most because their internal reasoning is itself sampled.
+Language model sampling is non-deterministic. Even at a fixed temperature, providers do not guarantee byte-identical output across calls, and reasoning models (including the default GLM-5.2) vary the most because their internal reasoning is itself sampled.
 
-Live data moves. News, StockTwits, and Reddit return different content as time passes, so a run today sees different inputs than a run last week even for the same historical trade date. Pin the analysis date to hold the price and indicator window fixed, but the social and news sources still reflect "now".
+Live data moves. For historical dates, current Xueqiu/TaoGuBa/StockTwits/Reddit posts are deliberately excluded instead of being presented as historical sentiment. Tushare financial rows are filtered by announcement date when available. A source that cannot provide a point-in-time snapshot is reported as unavailable.
 
 To reduce variation you can lower the sampling temperature. Set `temperature` in your config (or `TRADINGAGENTS_TEMPERATURE` in `.env`); lower values make models that honor it more repeatable. The current curated models are reasoning-first and largely ignore temperature, so for tighter reproducibility use a non-reasoning model, which you can set explicitly via the Custom model ID option.
 
 ```python
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"
+config["llm_provider"] = "glm-cn"
 config["temperature"] = 0.0
 # Reasoning models ignore temperature. For tighter reproducibility, set a
 # non-reasoning deep/quick model explicitly (e.g. via the Custom model ID option).

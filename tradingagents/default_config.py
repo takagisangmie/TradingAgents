@@ -13,9 +13,12 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
     "TRADINGAGENTS_LLM_BACKEND_URL":      "backend_url",
     "TRADINGAGENTS_OUTPUT_LANGUAGE":      "output_language",
+    "TRADINGAGENTS_MARKET_PROFILE":       "market_profile",
     "TRADINGAGENTS_MAX_DEBATE_ROUNDS":    "max_debate_rounds",
     "TRADINGAGENTS_MAX_RISK_ROUNDS":      "max_risk_discuss_rounds",
     "TRADINGAGENTS_CHECKPOINT_ENABLED":   "checkpoint_enabled",
+    "TRADINGAGENTS_INFORMATION_AUDIT":    "information_audit_enabled",
+    "TRADINGAGENTS_ENABLE_PREDICTION_MARKETS": "enable_prediction_markets",
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
@@ -77,10 +80,16 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # the oldest resolved entries are pruned once this limit is exceeded.
     # Pending entries are never pruned. None disables rotation entirely.
     "memory_log_max_entries": None,
+    # Market profile. The maintained default targets mainland China A-shares.
+    # Set ``market_profile`` to "global" and override data_vendors to use the
+    # legacy Yahoo/Alpha Vantage paths.
+    "market_profile": "a_share",
     # LLM settings
-    "llm_provider": "openai",
-    "deep_think_llm": "gpt-5.5",
-    "quick_think_llm": "gpt-5.4-mini",
+    # The A-share profile defaults to Zhipu's mainland China endpoint. Use
+    # ``glm`` instead of ``glm-cn`` when calling the international Z.AI API.
+    "llm_provider": "glm-cn",
+    "deep_think_llm": "glm-5.2",
+    "quick_think_llm": "glm-5.2",
     # When None, each provider's client falls back to its own default endpoint
     # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
     # The CLI overrides this per provider when the user picks one. Keeping a
@@ -105,7 +114,12 @@ DEFAULT_CONFIG = _apply_env_overrides({
     "checkpoint_enabled": False,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
-    "output_language": "English",
+    "output_language": "Simplified Chinese",
+    # Deterministic security review of all external text before it reaches an LLM.
+    "information_audit_enabled": True,
+    # Prediction-market data is live-only and not A-share specific, so it is
+    # excluded by default to avoid look-ahead leakage in historical analyses.
+    "enable_prediction_markets": False,
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
@@ -119,23 +133,24 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Search queries used by get_global_news for macro headlines. Extend or
     # replace to broaden geographic / sector coverage.
     "global_news_queries": [
-        "Federal Reserve interest rates inflation",
-        "S&P 500 earnings GDP economic outlook",
-        "geopolitical risk trade war sanctions",
-        "ECB Bank of England BOJ central bank policy",
-        "oil commodities supply chain energy",
+        "中国人民银行 货币政策 LPR 降准",
+        "A股 沪深300 上证指数 市场展望",
+        "中国 CPI PPI GDP 经济数据",
+        "北向资金 融资融券 产业政策",
+        "人民币 汇率 大宗商品 地缘风险",
     ],
+    "tushare_news_source": "sina",
     # Data vendor configuration
     # Category-level configuration (default for all tools in category).
     # The configured value is the exact vendor chain — requests are NOT silently
     # routed to vendors you didn't choose. For ordered fallback, list several,
     # e.g. "yfinance,alpha_vantage". "default" uses all available vendors.
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
-        "macro_data": "fred",                # Options: fred (needs FRED_API_KEY)
+        "core_stock_apis": "tushare",       # A-share OHLCV
+        "technical_indicators": "tushare",  # Derived from Tushare daily data
+        "fundamental_data": "tushare",      # Point-in-time A-share financials
+        "news_data": "tushare",             # China market/company news
+        "macro_data": "tushare",            # China CPI/PPI/GDP/Shibor
         "prediction_markets": "polymarket",  # Options: polymarket (keyless)
     },
     # Tool-level configuration (takes precedence over category-level)
@@ -148,7 +163,7 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # based on the ticker's exchange suffix. SPY remains the US default
     # so the reflection label keeps reading "Alpha vs SPY" for US tickers
     # while non-US tickers get their regional index automatically.
-    "benchmark_ticker": None,
+    "benchmark_ticker": "000300.SH",
     "benchmark_map": {
         ".NS":  "^NSEI",       # NSE India (Nifty 50)
         ".BO":  "^BSESN",      # BSE India (Sensex)

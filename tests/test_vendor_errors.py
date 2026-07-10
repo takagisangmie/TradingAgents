@@ -70,7 +70,8 @@ class RouterHandlesBaseTypesTests(unittest.TestCase):
             clear=False,
         ):
             out = interface.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")
-        self.assertEqual(out, "YF")
+        self.assertIn("YF", out)
+        self.assertIn("UNTRUSTED_EXTERNAL_DATA", out)
 
     def test_not_configured_falls_through_to_next_vendor(self):
         set_config({"data_vendors": {"core_stock_apis": "alpha_vantage,yfinance"}})
@@ -84,7 +85,8 @@ class RouterHandlesBaseTypesTests(unittest.TestCase):
             clear=False,
         ):
             out = interface.route_to_vendor("get_stock_data", "AAPL", "2026-01-01", "2026-01-10")
-        self.assertEqual(out, "YF")
+        self.assertIn("YF", out)
+        self.assertIn("UNTRUSTED_EXTERNAL_DATA", out)
 
     def test_sole_unconfigured_vendor_surfaces_the_error(self):
         # With no fallback, the not-configured condition must surface (not vanish).

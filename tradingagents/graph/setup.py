@@ -11,6 +11,7 @@ from tradingagents.agents import (
     create_bull_researcher,
     create_conservative_debator,
     create_fundamentals_analyst,
+    create_information_auditor,
     create_market_analyst,
     create_msg_delete,
     create_neutral_debator,
@@ -90,6 +91,7 @@ class GraphSetup:
         neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
         conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
         portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        information_auditor_node = create_information_auditor()
 
         # Create workflow
         workflow = StateGraph(AgentState)
@@ -109,6 +111,7 @@ class GraphSetup:
         workflow.add_node("Neutral Analyst", neutral_analyst)
         workflow.add_node("Conservative Analyst", conservative_analyst)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
+        workflow.add_node("Information Auditor", information_auditor_node)
 
         # Define edges
         # Start with the first analyst
@@ -132,7 +135,9 @@ class GraphSetup:
             if i < len(plan.specs) - 1:
                 workflow.add_edge(current_clear, plan.specs[i + 1].agent_node)
             else:
-                workflow.add_edge(current_clear, "Bull Researcher")
+                workflow.add_edge(current_clear, "Information Auditor")
+
+        workflow.add_edge("Information Auditor", "Bull Researcher")
 
         # Both research-debate edges share the complete DEBATE_PATH_MAP (#1088).
         for debate_node in ("Bull Researcher", "Bear Researcher"):

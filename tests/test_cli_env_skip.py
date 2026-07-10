@@ -15,7 +15,8 @@ import pytest
 @pytest.mark.unit
 class TestProviderDefaultUrl(unittest.TestCase):
     def test_known_providers_resolve(self):
-        from cli.utils import provider_default_url
+        from cli.utils import _llm_provider_table, provider_default_url
+        self.assertEqual(_llm_provider_table()[0][1], "glm")
         self.assertEqual(provider_default_url("openai"), "https://api.openai.com/v1")
         self.assertEqual(provider_default_url("DeepSeek"), "https://api.deepseek.com")
         self.assertIsNone(provider_default_url("google"))  # uses SDK default

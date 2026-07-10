@@ -170,7 +170,8 @@ class FredRoutingTests(unittest.TestCase):
             clear=False,
         ):
             out = interface.route_to_vendor("get_macro_indicators", "cpi", "2026-06-01", 365)
-        self.assertEqual(out, "MACRO_OK")
+        self.assertIn("MACRO_OK", out)
+        self.assertIn("UNTRUSTED_EXTERNAL_DATA", out)
 
     def test_not_configured_degrades_gracefully(self):
         # macro_data is optional: with only fred and no key, the router degrades
