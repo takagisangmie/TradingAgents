@@ -68,7 +68,7 @@ and [architecture](docs/ARCHITECTURE.md).
 
 ## TradingAgents Framework
 
-TradingAgents is a multi-agent trading framework that mirrors the dynamics of real-world trading firms. By deploying specialized LLM-powered agents: from fundamental analysts, sentiment experts, and technical analysts, to trader, risk management team, the platform collaboratively evaluates market conditions and informs trading decisions. Moreover, these agents engage in dynamic discussions to pinpoint the optimal strategy.
+TradingAgents is a multi-agent investment-research framework. Specialized fundamental, sentiment, news, and technical analysts feed a symmetric bull/bear review, followed by independent market/liquidity, fundamental/event, and portfolio-exposure risk checks before the final portfolio decision.
 
 <p align="center">
   <img src="assets/schema.png" style="width: 100%; height: auto;">
@@ -89,23 +89,35 @@ Our framework decomposes complex trading tasks into specialized roles.
   <img src="assets/analyst.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
+### Investment Methodology Team
+
+Six independent employee roles apply complementary
+investment methodologies to the same audited evidence:
+
+- Buffett Methodology Reviewer: business quality, moat, owner earnings, capital allocation, intrinsic value, and margin of safety.
+- Duan Yongping Methodology Reviewer: business model, consumer value, culture, management integrity, long-term cash generation, and opportunity cost.
+- Benjamin Graham Methodology Reviewer: balance-sheet protection, normalized earnings, downside value, and defensive margin of safety.
+- Philip Fisher Methodology Reviewer: growth runway, innovation, organizational depth, margins, and customer/channel evidence.
+- Peter Lynch Methodology Reviewer: company category, simple operating story, growth versus expectations, valuation, and deterioration signals.
+- Howard Marks Methodology Reviewer: cycles, consensus expectations, second-level thinking, asymmetry, liquidity, and permanent-loss risk.
+
+These agents apply methodology-inspired checklists; they do not impersonate the
+named investors, fabricate quotations, issue portfolio orders, or claim knowledge
+of anyone's current personal views or holdings. Each can return Pass, Watch,
+Reject, or Abstain. All six run independently before their reviews are supplied
+to the research and portfolio decision layers.
+
 ### Researcher Team
-- Comprises both bullish and bearish researchers who critically assess the insights provided by the Analyst Team. Through structured debates, they balance potential gains against inherent risks.
+- Comprises both bullish and bearish researchers who critically assess the insights provided by the Analyst Team and Methodology Team. Through structured debates, they balance potential gains against inherent risks.
 
 <p align="center">
   <img src="assets/researcher.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
-### Trader Agent
-- Composes reports from the analysts and researchers to make informed trading decisions, determining the timing and magnitude of trades.
-
-<p align="center">
-  <img src="assets/trader.png" width="70%" style="display: inline-block; margin: 0 2%;">
-</p>
-
 ### Risk Management and Portfolio Manager
-- Continuously evaluates portfolio risk by assessing market volatility, liquidity, and other risk factors. The risk management team evaluates and adjusts trading strategies, providing assessment reports to the Portfolio Manager for final decision.
-- The Portfolio Manager approves/rejects the transaction proposal. This repository produces research decisions; it does not submit or simulate broker orders.
+- Market & Liquidity Risk, Fundamental & Event Risk, and Portfolio Exposure Risk analysts independently review the Research Manager's plan.
+- The Portfolio Manager verifies those reviews against the raw analyst reports, information audit, and optional portfolio context before issuing the final five-tier decision.
+- This repository produces research decisions; it does not submit or simulate broker orders.
 
 <p align="center">
   <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
@@ -241,9 +253,25 @@ from tradingagents.default_config import DEFAULT_CONFIG
 ta = TradingAgentsGraph(debug=True, config=DEFAULT_CONFIG.copy())
 
 # forward propagate
-_, decision = ta.propagate("600519.SH", "2026-01-15")
+_, decision = ta.propagate(
+    "600519.SH",
+    "2026-01-15",
+    portfolio_context={
+        "current_weight": 0.02,
+        "max_weight": 0.05,
+        "cash_available_cny": 100000,
+        "time_horizon": "6-12 months",
+        "risk_budget": "moderate",
+        "transaction_cost_bps": 8,
+    },
+)
 print(decision)
 ```
+
+When portfolio context is omitted, risk reviewers and the Portfolio Manager are
+instructed to keep sizing and price-level recommendations conditional rather
+than inventing holdings or account constraints. The CLI accepts the same
+information as text through `--portfolio-context`.
 
 You can also adjust the default configuration to set your own choice of LLMs, debate rounds, etc.
 

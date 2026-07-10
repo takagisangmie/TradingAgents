@@ -41,6 +41,10 @@ from cli.utils import (
     select_research_depth,
     select_shallow_thinking_agent,
 )
+from tradingagents.agents.philosophy import (
+    PHILOSOPHY_REVIEWER_NAMES,
+    format_philosophy_reviews,
+)
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.analyst_execution import (
     AnalystWallTimeTracker,
@@ -65,9 +69,13 @@ class MessageBuffer:
     # Fixed teams that always run (not user-selectable)
     FIXED_AGENTS = {
         "Information Security": ["Information Auditor"],
+        "Investment Methodology": list(PHILOSOPHY_REVIEWER_NAMES),
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
-        "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
+        "Risk Management": [
+            "Market & Liquidity Risk Analyst",
+            "Fundamental & Event Risk Analyst",
+            "Portfolio Exposure Risk Analyst",
+        ],
         "Portfolio Management": ["Portfolio Manager"],
     }
 
@@ -88,8 +96,8 @@ class MessageBuffer:
         "news_report": ("news", "News Analyst"),
         "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
         "information_audit_report": (None, "Information Auditor"),
+        "philosophy_reviews": (None, "Research Manager"),
         "investment_plan": (None, "Research Manager"),
-        "trader_investment_plan": (None, "Trader"),
         "final_trade_decision": (None, "Portfolio Manager"),
     }
 
@@ -197,8 +205,8 @@ class MessageBuffer:
                 "news_report": "News Analysis",
                 "fundamentals_report": "Fundamentals Analysis",
                 "information_audit_report": "Information Security Audit",
+                "philosophy_reviews": "Investment Methodology Reviews",
                 "investment_plan": "Research Team Decision",
-                "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",
             }
             self.current_report = (
@@ -236,15 +244,15 @@ class MessageBuffer:
                     f"### Fundamentals Analysis\n{self.report_sections['fundamentals_report']}"
                 )
 
+        # Investment Methodology Reviews
+        if self.report_sections.get("philosophy_reviews"):
+            report_parts.append("## Investment Methodology Reviews")
+            report_parts.append(self.report_sections["philosophy_reviews"])
+
         # Research Team Reports
         if self.report_sections.get("investment_plan"):
             report_parts.append("## Research Team Decision")
             report_parts.append(f"{self.report_sections['investment_plan']}")
-
-        # Trading Team Reports
-        if self.report_sections.get("trader_investment_plan"):
-            report_parts.append("## Trading Team Plan")
-            report_parts.append(f"{self.report_sections['trader_investment_plan']}")
 
         # Portfolio Management Decision
         if self.report_sections.get("final_trade_decision"):
@@ -315,9 +323,13 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             "News Analyst",
             "Fundamentals Analyst",
         ],
+        "Investment Methodology": list(PHILOSOPHY_REVIEWER_NAMES),
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
-        "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
+        "Risk Management": [
+            "Market & Liquidity Risk Analyst",
+            "Fundamental & Event Risk Analyst",
+            "Portfolio Exposure Risk Analyst",
+        ],
         "Portfolio Management": ["Portfolio Manager"],
     }
 
@@ -497,7 +509,7 @@ def get_user_selections():
     welcome_content = f"{welcome_ascii}\n"
     welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
-    welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
+    welcome_content += "I. Analyst Team → II. Methodology Review → III. Research Team → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
         "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
     )
@@ -791,7 +803,23 @@ def display_complete_report(final_state):
         for title, content in analysts:
             console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
 
-    # II. Research Team Reports
+    # II. Investment Methodology Reviews
+    philosophy_reviews = final_state.get("philosophy_reviews", [])
+    if philosophy_reviews:
+        console.print(
+            Panel("[bold]II. Investment Methodology Reviews[/bold]", border_style="yellow")
+        )
+        for review in philosophy_reviews:
+            console.print(
+                Panel(
+                    Markdown(review.get("content", "")),
+                    title=review.get("reviewer", "Methodology Reviewer"),
+                    border_style="blue",
+                    padding=(1, 2),
+                )
+            )
+
+    # III. Research Team Reports
     if final_state.get("investment_debate_state"):
         debate = final_state["investment_debate_state"]
         research = []
@@ -802,27 +830,22 @@ def display_complete_report(final_state):
         if debate.get("judge_decision"):
             research.append(("Research Manager", debate["judge_decision"]))
         if research:
-            console.print(Panel("[bold]II. Research Team Decision[/bold]", border_style="magenta"))
+            console.print(Panel("[bold]III. Research Team Decision[/bold]", border_style="magenta"))
             for title, content in research:
                 console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
-
-    # III. Trading Team
-    if final_state.get("trader_investment_plan"):
-        console.print(Panel("[bold]III. Trading Team Plan[/bold]", border_style="yellow"))
-        console.print(Panel(Markdown(final_state["trader_investment_plan"]), title="Trader", border_style="blue", padding=(1, 2)))
 
     # IV. Risk Management Team
     if final_state.get("risk_debate_state"):
         risk = final_state["risk_debate_state"]
         risk_reports = []
-        if risk.get("aggressive_history"):
-            risk_reports.append(("Aggressive Analyst", risk["aggressive_history"]))
-        if risk.get("conservative_history"):
-            risk_reports.append(("Conservative Analyst", risk["conservative_history"]))
-        if risk.get("neutral_history"):
-            risk_reports.append(("Neutral Analyst", risk["neutral_history"]))
+        if risk.get("market_liquidity_history"):
+            risk_reports.append(("Market & Liquidity Risk Analyst", risk["market_liquidity_history"]))
+        if risk.get("fundamental_event_history"):
+            risk_reports.append(("Fundamental & Event Risk Analyst", risk["fundamental_event_history"]))
+        if risk.get("portfolio_exposure_history"):
+            risk_reports.append(("Portfolio Exposure Risk Analyst", risk["portfolio_exposure_history"]))
         if risk_reports:
-            console.print(Panel("[bold]IV. Risk Management Team Decision[/bold]", border_style="red"))
+            console.print(Panel("[bold]IV. Risk Management Review[/bold]", border_style="red"))
             for title, content in risk_reports:
                 console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
 
@@ -833,7 +856,7 @@ def display_complete_report(final_state):
 
 
 def update_research_team_status(status):
-    """Update status for research team members (not Trader)."""
+    """Update status for research team members."""
     research_team = ["Bull Researcher", "Bear Researcher", "Research Manager"]
     for agent in research_team:
         message_buffer.update_agent_status(agent, status)
@@ -1007,7 +1030,10 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     return config
 
 
-def run_analysis(checkpoint: bool | None = None):
+def run_analysis(
+    checkpoint: bool | None = None,
+    portfolio_context: str | None = None,
+):
     # First get all user selections
     selections = get_user_selections()
 
@@ -1130,6 +1156,7 @@ def run_analysis(checkpoint: bool | None = None):
             selections["analysis_date"],
             asset_type=selections["asset_type"],
             instrument_context=instrument_context,
+            portfolio_context=portfolio_context or "",
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
@@ -1170,7 +1197,24 @@ def run_analysis(checkpoint: bool | None = None):
                     chunk["information_audit_report"],
                 )
                 message_buffer.update_agent_status("Information Auditor", "completed")
-                message_buffer.update_agent_status("Bull Researcher", "in_progress")
+                for reviewer in PHILOSOPHY_REVIEWER_NAMES:
+                    message_buffer.update_agent_status(reviewer, "in_progress")
+
+            # Independent investment-methodology reviewers
+            philosophy_reviews = chunk.get("philosophy_reviews", [])
+            if philosophy_reviews:
+                message_buffer.update_report_section(
+                    "philosophy_reviews",
+                    format_philosophy_reviews(philosophy_reviews),
+                )
+                completed_reviewers = {
+                    review.get("reviewer") for review in philosophy_reviews
+                }
+                for reviewer in PHILOSOPHY_REVIEWER_NAMES:
+                    if reviewer in completed_reviewers:
+                        message_buffer.update_agent_status(reviewer, "completed")
+                if len(completed_reviewers) == len(PHILOSOPHY_REVIEWER_NAMES):
+                    message_buffer.update_agent_status("Bull Researcher", "in_progress")
 
             # Research Team - Handle Investment Debate State
             if chunk.get("investment_debate_state"):
@@ -1195,51 +1239,44 @@ def run_analysis(checkpoint: bool | None = None):
                         "investment_plan", f"### Research Manager Decision\n{judge}"
                     )
                     update_research_team_status("completed")
-                    message_buffer.update_agent_status("Trader", "in_progress")
+                    message_buffer.update_agent_status(
+                        "Market & Liquidity Risk Analyst", "in_progress"
+                    )
 
-            # Trading Team
-            if chunk.get("trader_investment_plan"):
-                message_buffer.update_report_section(
-                    "trader_investment_plan", chunk["trader_investment_plan"]
-                )
-                if message_buffer.agent_status.get("Trader") != "completed":
-                    message_buffer.update_agent_status("Trader", "completed")
-                    message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
-
-            # Risk Management Team - Handle Risk Debate State
+            # Risk Management Team - Handle independent domain reviews
             if chunk.get("risk_debate_state"):
                 risk_state = chunk["risk_debate_state"]
-                agg_hist = risk_state.get("aggressive_history", "").strip()
-                con_hist = risk_state.get("conservative_history", "").strip()
-                neu_hist = risk_state.get("neutral_history", "").strip()
+                market_hist = risk_state.get("market_liquidity_history", "").strip()
+                event_hist = risk_state.get("fundamental_event_history", "").strip()
+                exposure_hist = risk_state.get("portfolio_exposure_history", "").strip()
                 judge = risk_state.get("judge_decision", "").strip()
 
-                if agg_hist:
-                    if message_buffer.agent_status.get("Aggressive Analyst") != "completed":
-                        message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
+                if market_hist:
+                    if message_buffer.agent_status.get("Market & Liquidity Risk Analyst") != "completed":
+                        message_buffer.update_agent_status("Market & Liquidity Risk Analyst", "in_progress")
                     message_buffer.update_report_section(
-                        "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
+                        "final_trade_decision", f"### Market & Liquidity Risk Analysis\n{market_hist}"
                     )
-                if con_hist:
-                    if message_buffer.agent_status.get("Conservative Analyst") != "completed":
-                        message_buffer.update_agent_status("Conservative Analyst", "in_progress")
+                if event_hist:
+                    if message_buffer.agent_status.get("Fundamental & Event Risk Analyst") != "completed":
+                        message_buffer.update_agent_status("Fundamental & Event Risk Analyst", "in_progress")
                     message_buffer.update_report_section(
-                        "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
+                        "final_trade_decision", f"### Fundamental & Event Risk Analysis\n{event_hist}"
                     )
-                if neu_hist:
-                    if message_buffer.agent_status.get("Neutral Analyst") != "completed":
-                        message_buffer.update_agent_status("Neutral Analyst", "in_progress")
+                if exposure_hist:
+                    if message_buffer.agent_status.get("Portfolio Exposure Risk Analyst") != "completed":
+                        message_buffer.update_agent_status("Portfolio Exposure Risk Analyst", "in_progress")
                     message_buffer.update_report_section(
-                        "final_trade_decision", f"### Neutral Analyst Analysis\n{neu_hist}"
+                        "final_trade_decision", f"### Portfolio Exposure Risk Analysis\n{exposure_hist}"
                     )
                 if judge and message_buffer.agent_status.get("Portfolio Manager") != "completed":
                     message_buffer.update_agent_status("Portfolio Manager", "in_progress")
                     message_buffer.update_report_section(
                         "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
                     )
-                    message_buffer.update_agent_status("Aggressive Analyst", "completed")
-                    message_buffer.update_agent_status("Conservative Analyst", "completed")
-                    message_buffer.update_agent_status("Neutral Analyst", "completed")
+                    message_buffer.update_agent_status("Market & Liquidity Risk Analyst", "completed")
+                    message_buffer.update_agent_status("Fundamental & Event Risk Analyst", "completed")
+                    message_buffer.update_agent_status("Portfolio Exposure Risk Analyst", "completed")
                     message_buffer.update_agent_status("Portfolio Manager", "completed")
 
             # Update the display
@@ -1309,12 +1346,17 @@ def analyze(
         "--clear-checkpoints",
         help="Delete all saved checkpoints before running (force fresh start).",
     ),
+    portfolio_context: str | None = typer.Option(
+        None,
+        "--portfolio-context",
+        help="Optional holdings, cash, risk budget, horizon, costs, and constraints supplied to risk review.",
+    ),
 ):
     if clear_checkpoints:
         from tradingagents.graph.checkpointer import clear_all_checkpoints
         n = clear_all_checkpoints(DEFAULT_CONFIG["data_cache_dir"])
         console.print(f"[yellow]Cleared {n} checkpoint(s).[/yellow]")
-    run_analysis(checkpoint=checkpoint)
+    run_analysis(checkpoint=checkpoint, portfolio_context=portfolio_context)
 
 
 if __name__ == "__main__":

@@ -55,8 +55,8 @@ def get_language_instruction() -> str:
 
     Returns empty string when English (default), so no extra tokens are used.
     Applied to every agent whose output reaches the saved report —
-    analysts, researchers, debaters, research manager, trader, and
-    portfolio manager — so a non-English run produces a fully localized
+    analysts, researchers, risk reviewers, research manager, and portfolio
+    manager — so a non-English run produces a fully localized
     report rather than a mix of languages.
     """
     from tradingagents.dataflows.config import get_config
@@ -229,5 +229,4 @@ def create_msg_delete():
         return {"messages": removal_operations + [placeholder]}
 
     return delete_messages
-
 

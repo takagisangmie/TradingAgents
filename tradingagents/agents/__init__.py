@@ -8,12 +8,26 @@ from .analysts.sentiment_analyst import (
 )
 from .managers.portfolio_manager import create_portfolio_manager
 from .managers.research_manager import create_research_manager
+from .philosophy import (
+    PHILOSOPHY_REVIEWER_NAMES,
+    PHILOSOPHY_SPECS,
+    create_philosophy_reviewer,
+    format_philosophy_reviews,
+)
 from .researchers.bear_researcher import create_bear_researcher
 from .researchers.bull_researcher import create_bull_researcher
-from .risk_mgmt.aggressive_debator import create_aggressive_debator
-from .risk_mgmt.conservative_debator import create_conservative_debator
-from .risk_mgmt.neutral_debator import create_neutral_debator
-from .trader.trader import create_trader
+from .risk_mgmt.aggressive_debator import (
+    create_aggressive_debator,
+    create_market_liquidity_risk_analyst,
+)
+from .risk_mgmt.conservative_debator import (
+    create_conservative_debator,
+    create_fundamental_event_risk_analyst,
+)
+from .risk_mgmt.neutral_debator import (
+    create_neutral_debator,
+    create_portfolio_exposure_risk_analyst,
+)
 from .utils.agent_states import AgentState, InvestDebateState, RiskDebateState
 from .utils.agent_utils import create_msg_delete
 
@@ -22,18 +36,24 @@ __all__ = [
     "create_msg_delete",
     "InvestDebateState",
     "RiskDebateState",
+    "PHILOSOPHY_REVIEWER_NAMES",
+    "PHILOSOPHY_SPECS",
     "create_bear_researcher",
     "create_bull_researcher",
     "create_research_manager",
+    "create_philosophy_reviewer",
+    "format_philosophy_reviews",
     "create_fundamentals_analyst",
     "create_information_auditor",
     "create_market_analyst",
     "create_neutral_debator",
+    "create_portfolio_exposure_risk_analyst",
     "create_news_analyst",
     "create_aggressive_debator",
+    "create_market_liquidity_risk_analyst",
     "create_portfolio_manager",
     "create_conservative_debator",
+    "create_fundamental_event_risk_analyst",
     "create_sentiment_analyst",
     "create_social_media_analyst",  # deprecated; will be removed in a future version
-    "create_trader",
 ]

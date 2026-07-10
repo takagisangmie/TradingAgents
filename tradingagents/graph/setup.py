@@ -6,20 +6,22 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from tradingagents.agents import (
-    create_aggressive_debator,
+    PHILOSOPHY_REVIEWER_NAMES,
+    PHILOSOPHY_SPECS,
     create_bear_researcher,
     create_bull_researcher,
-    create_conservative_debator,
+    create_fundamental_event_risk_analyst,
     create_fundamentals_analyst,
     create_information_auditor,
     create_market_analyst,
+    create_market_liquidity_risk_analyst,
     create_msg_delete,
-    create_neutral_debator,
     create_news_analyst,
+    create_philosophy_reviewer,
+    create_portfolio_exposure_risk_analyst,
     create_portfolio_manager,
     create_research_manager,
     create_sentiment_analyst,
-    create_trader,
 )
 from tradingagents.agents.utils.agent_states import AgentState
 
@@ -36,9 +38,9 @@ DEBATE_PATH_MAP = {
     "Research Manager": "Research Manager",
 }
 RISK_ANALYSIS_PATH_MAP = {
-    "Aggressive Analyst": "Aggressive Analyst",
-    "Conservative Analyst": "Conservative Analyst",
-    "Neutral Analyst": "Neutral Analyst",
+    "Market & Liquidity Risk Analyst": "Market & Liquidity Risk Analyst",
+    "Fundamental & Event Risk Analyst": "Fundamental & Event Risk Analyst",
+    "Portfolio Exposure Risk Analyst": "Portfolio Exposure Risk Analyst",
     "Portfolio Manager": "Portfolio Manager",
 }
 
@@ -84,14 +86,18 @@ class GraphSetup:
         bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
         bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
         research_manager_node = create_research_manager(self.deep_thinking_llm)
-        trader_node = create_trader(self.quick_thinking_llm)
-
         # Create risk analysis nodes
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
+        market_liquidity_analyst = create_market_liquidity_risk_analyst(self.quick_thinking_llm)
+        fundamental_event_analyst = create_fundamental_event_risk_analyst(self.quick_thinking_llm)
+        portfolio_exposure_analyst = create_portfolio_exposure_risk_analyst(self.quick_thinking_llm)
         portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
         information_auditor_node = create_information_auditor()
+        philosophy_reviewer_nodes = {
+            spec.node_name: create_philosophy_reviewer(
+                self.quick_thinking_llm, spec
+            )
+            for spec in PHILOSOPHY_SPECS
+        }
 
         # Create workflow
         workflow = StateGraph(AgentState)
@@ -106,12 +112,13 @@ class GraphSetup:
         workflow.add_node("Bull Researcher", bull_researcher_node)
         workflow.add_node("Bear Researcher", bear_researcher_node)
         workflow.add_node("Research Manager", research_manager_node)
-        workflow.add_node("Trader", trader_node)
-        workflow.add_node("Aggressive Analyst", aggressive_analyst)
-        workflow.add_node("Neutral Analyst", neutral_analyst)
-        workflow.add_node("Conservative Analyst", conservative_analyst)
+        workflow.add_node("Market & Liquidity Risk Analyst", market_liquidity_analyst)
+        workflow.add_node("Fundamental & Event Risk Analyst", fundamental_event_analyst)
+        workflow.add_node("Portfolio Exposure Risk Analyst", portfolio_exposure_analyst)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
         workflow.add_node("Information Auditor", information_auditor_node)
+        for node_name, node in philosophy_reviewer_nodes.items():
+            workflow.add_node(node_name, node)
 
         # Define edges
         # Start with the first analyst
@@ -137,7 +144,12 @@ class GraphSetup:
             else:
                 workflow.add_edge(current_clear, "Information Auditor")
 
-        workflow.add_edge("Information Auditor", "Bull Researcher")
+        # Methodology reviewers run from the same audited evidence and cannot
+        # see one another's output. The list edge is a barrier: research starts
+        # only after all six independent reviews have completed.
+        for node_name in PHILOSOPHY_REVIEWER_NAMES:
+            workflow.add_edge("Information Auditor", node_name)
+        workflow.add_edge(list(PHILOSOPHY_REVIEWER_NAMES), "Bull Researcher")
 
         # Both research-debate edges share the complete DEBATE_PATH_MAP (#1088).
         for debate_node in ("Bull Researcher", "Bear Researcher"):
@@ -146,10 +158,13 @@ class GraphSetup:
                 self.conditional_logic.should_continue_debate,
                 DEBATE_PATH_MAP,
             )
-        workflow.add_edge("Research Manager", "Trader")
-        workflow.add_edge("Trader", "Aggressive Analyst")
+        workflow.add_edge("Research Manager", "Market & Liquidity Risk Analyst")
         # All three risk edges share the complete RISK_ANALYSIS_PATH_MAP (#1088).
-        for risk_node in ("Aggressive Analyst", "Conservative Analyst", "Neutral Analyst"):
+        for risk_node in (
+            "Market & Liquidity Risk Analyst",
+            "Fundamental & Event Risk Analyst",
+            "Portfolio Exposure Risk Analyst",
+        ):
             workflow.add_conditional_edges(
                 risk_node,
                 self.conditional_logic.should_continue_risk_analysis,

@@ -23,11 +23,11 @@ def _debate_state(current_response, count=0):
 
 @pytest.mark.unit
 @pytest.mark.parametrize("latest_speaker", [
-    "Aggressive", "Aggressive Analyst",
-    "Conservative", "Conservative Analyst",
-    "Neutral", "Neutral Analyst",
+    "Market & Liquidity", "Market & Liquidity Risk Analyst",
+    "Fundamental & Event", "Fundamental & Event Risk Analyst",
+    "Portfolio Exposure", "Portfolio Exposure Risk Analyst",
     "",                          # drift: empty label
-    "Aggressive Risk Analyst",   # drift: node renamed
+    "Market Risk Analyst",       # drift: node renamed
     "Agresivo",                  # drift: i18n / translated label
 ])
 def test_router_return_always_routable(latest_speaker):
@@ -40,7 +40,7 @@ def test_router_return_always_routable(latest_speaker):
 def test_router_terminates_at_round_limit():
     logic = ConditionalLogic(max_risk_discuss_rounds=1)
     # count >= 3 * rounds routes to the Portfolio Manager (debate ends)
-    assert logic.should_continue_risk_analysis(_state("Neutral", count=3)) == "Portfolio Manager"
+    assert logic.should_continue_risk_analysis(_state("Portfolio Exposure", count=3)) == "Portfolio Manager"
 
 
 @pytest.mark.unit
@@ -48,7 +48,7 @@ def test_path_map_covers_full_router_range():
     logic = ConditionalLogic(max_risk_discuss_rounds=1)
     returns = {
         logic.should_continue_risk_analysis(_state(s, c))
-        for s in ("Aggressive", "Conservative", "Neutral", "drift")
+        for s in ("Market", "Fundamental", "Portfolio Exposure", "drift")
         for c in (0, 99)
     }
     # Every value the router can emit is a key in the shared map...
@@ -79,3 +79,12 @@ def test_debate_path_map_covers_full_router_range():
     }
     assert returns <= set(DEBATE_PATH_MAP)
     assert "Research Manager" in returns  # terminal reachable
+
+
+@pytest.mark.unit
+def test_debate_default_includes_symmetric_rebuttals():
+    logic = ConditionalLogic(max_debate_rounds=1)
+    assert logic.should_continue_debate(_debate_state("Bull", count=1)) == "Bear Researcher"
+    assert logic.should_continue_debate(_debate_state("Bear", count=2)) == "Bull Researcher"
+    assert logic.should_continue_debate(_debate_state("Bull", count=3)) == "Bear Researcher"
+    assert logic.should_continue_debate(_debate_state("Bear", count=4)) == "Research Manager"

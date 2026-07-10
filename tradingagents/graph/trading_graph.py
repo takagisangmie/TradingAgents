@@ -1,5 +1,6 @@
 # TradingAgents/graph/trading_graph.py
 
+import hashlib
 import json
 import logging
 import os
@@ -376,13 +377,14 @@ class TradingAgentsGraph:
             identity = resolve_instrument_identity(ticker)
         return build_instrument_context(ticker, asset_type, identity)
 
-    def _run_signature(self, asset_type: str) -> str:
+    def _run_signature(self, asset_type: str, portfolio_context: str = "") -> str:
         """Graph-shape inputs that must invalidate a checkpoint if changed.
 
         Keyed into the checkpoint thread ID so a resume under a different analyst
         selection, debate/risk depth, or asset mode starts fresh instead of
         silently continuing the previous graph (#1089).
         """
+        portfolio_hash = hashlib.sha256(portfolio_context.encode("utf-8")).hexdigest()[:12]
         return "|".join([
             "analysts=" + ",".join(self.selected_analysts),
             f"debate={self.config['max_debate_rounds']}",
@@ -390,9 +392,17 @@ class TradingAgentsGraph:
             f"asset={asset_type}",
             f"market={self.config.get('market_profile', 'global')}",
             f"prediction={self.config.get('enable_prediction_markets', False)}",
+            f"portfolio={portfolio_hash}",
+            "role_design=philosophy_reviewers_v1",
         ])
 
-    def propagate(self, company_name, trade_date, asset_type: str = "stock"):
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        portfolio_context: str | dict[str, Any] | None = None,
+    ):
         """Run the trading agents graph for a company on a specific date.
 
         ``asset_type`` selects between the stock pipeline (default) and the
@@ -403,6 +413,14 @@ class TradingAgentsGraph:
         successful node on a subsequent invocation with the same ticker+date.
         """
         self.ticker = company_name
+        if isinstance(portfolio_context, str):
+            serialized_portfolio_context = portfolio_context.strip()
+        elif portfolio_context:
+            serialized_portfolio_context = json.dumps(
+                portfolio_context, ensure_ascii=False, sort_keys=True, indent=2
+            )
+        else:
+            serialized_portfolio_context = ""
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
         self._resolve_pending_entries(company_name)
@@ -417,7 +435,7 @@ class TradingAgentsGraph:
 
             step = checkpoint_step(
                 self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
+                self._run_signature(asset_type, serialized_portfolio_context),
             )
             if step is not None:
                 logger.info(
@@ -427,7 +445,12 @@ class TradingAgentsGraph:
                 logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date, asset_type=asset_type)
+            return self._run_graph(
+                company_name,
+                trade_date,
+                asset_type=asset_type,
+                portfolio_context=serialized_portfolio_context,
+            )
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -449,7 +472,13 @@ class TradingAgentsGraph:
             )
         return write_report_tree(final_state, ticker, save_path)
 
-    def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
+    def _run_graph(
+        self,
+        company_name,
+        trade_date,
+        asset_type: str = "stock",
+        portfolio_context: str = "",
+    ):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
@@ -461,13 +490,18 @@ class TradingAgentsGraph:
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            portfolio_context=portfolio_context,
         )
         args = self.propagator.get_graph_args()
 
         # Inject thread_id so same ticker+date+graph-shape resumes; a different
         # date or graph shape starts fresh (#1089).
         if self.config.get("checkpoint_enabled"):
-            tid = thread_id(company_name, str(trade_date), self._run_signature(asset_type))
+            tid = thread_id(
+                company_name,
+                str(trade_date),
+                self._run_signature(asset_type, portfolio_context),
+            )
             args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = tid
 
         if self.debug:
@@ -476,7 +510,7 @@ class TradingAgentsGraph:
             for chunk in self.graph.stream(init_agent_state, **args):
                 if chunk["messages"]:
                     msg = chunk["messages"][-1]
-                    # Nodes after the trader don't append to messages, so the
+                    # Decision and risk nodes don't append to messages, so the
                     # same trailing message repeats across chunks. Print it only
                     # when it changes (#1027); the trace/state merge is unchanged.
                     signature = (type(msg).__name__, getattr(msg, "content", None))
@@ -509,7 +543,7 @@ class TradingAgentsGraph:
         if self.config.get("checkpoint_enabled"):
             clear_checkpoint(
                 self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
+                self._run_signature(asset_type, portfolio_context),
             )
 
         return final_state, self.process_signal(final_state["final_trade_decision"])
@@ -524,6 +558,8 @@ class TradingAgentsGraph:
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
             "information_audit_report": final_state.get("information_audit_report", ""),
+            "portfolio_context": final_state.get("portfolio_context", ""),
+            "philosophy_reviews": final_state.get("philosophy_reviews", []),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],
@@ -535,11 +571,10 @@ class TradingAgentsGraph:
                     "judge_decision"
                 ],
             },
-            "trader_investment_decision": final_state["trader_investment_plan"],
             "risk_debate_state": {
-                "aggressive_history": final_state["risk_debate_state"]["aggressive_history"],
-                "conservative_history": final_state["risk_debate_state"]["conservative_history"],
-                "neutral_history": final_state["risk_debate_state"]["neutral_history"],
+                "market_liquidity_history": final_state["risk_debate_state"]["market_liquidity_history"],
+                "fundamental_event_history": final_state["risk_debate_state"]["fundamental_event_history"],
+                "portfolio_exposure_history": final_state["risk_debate_state"]["portfolio_exposure_history"],
                 "history": final_state["risk_debate_state"]["history"],
                 "judge_decision": final_state["risk_debate_state"]["judge_decision"],
             },

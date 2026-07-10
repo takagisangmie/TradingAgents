@@ -66,13 +66,13 @@ def _make_pm_state(past_context=""):
         "past_context": past_context,
         "risk_debate_state": {
             "history": "Risk debate history.",
-            "aggressive_history": "",
-            "conservative_history": "",
-            "neutral_history": "",
+            "market_liquidity_history": "",
+            "fundamental_event_history": "",
+            "portfolio_exposure_history": "",
             "judge_decision": "",
-            "current_aggressive_response": "",
-            "current_conservative_response": "",
-            "current_neutral_response": "",
+            "current_market_liquidity_response": "",
+            "current_fundamental_event_response": "",
+            "current_portfolio_exposure_response": "",
             "count": 1,
         },
         "market_report": "Market report.",
@@ -80,7 +80,8 @@ def _make_pm_state(past_context=""):
         "news_report": "News report.",
         "fundamentals_report": "Fundamentals report.",
         "investment_plan": "Research plan.",
-        "trader_investment_plan": "Trader plan.",
+        "portfolio_context": "No current position; maximum weight 5%.",
+        "information_audit_report": "No material warnings.",
     }
 
 
@@ -842,13 +843,14 @@ class TestLegacyRemoval:
                 "current_response": "", "judge_decision": "",
             },
             "investment_plan": "",
-            "trader_investment_plan": "",
             "risk_debate_state": {
-                "aggressive_history": "", "conservative_history": "",
-                "neutral_history": "", "history": "", "judge_decision": "",
-                "current_aggressive_response": "", "current_conservative_response": "",
-                "current_neutral_response": "", "count": 1, "latest_speaker": "",
+                "market_liquidity_history": "", "fundamental_event_history": "",
+                "portfolio_exposure_history": "", "history": "", "judge_decision": "",
+                "current_market_liquidity_response": "", "current_fundamental_event_response": "",
+                "current_portfolio_exposure_response": "", "count": 1, "latest_speaker": "",
             },
+            "portfolio_context": "",
+            "information_audit_report": "",
         }
         mock_graph = MagicMock()
         mock_graph.memory_log = TradingMemoryLog({"memory_log_path": str(tmp_path / "mem.md")})

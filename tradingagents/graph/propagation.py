@@ -22,6 +22,7 @@ class Propagator:
         asset_type: str = "stock",
         past_context: str = "",
         instrument_context: str = "",
+        portfolio_context: str = "",
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -36,6 +37,11 @@ class Propagator:
             "company_of_interest": company_name,
             "asset_type": asset_type,
             "instrument_context": instrument_context,
+            "portfolio_context": portfolio_context or (
+                "No portfolio context was supplied. Do not invent holdings, cash, "
+                "risk budget, transaction costs, or exposure limits; make any "
+                "position-sizing recommendation explicitly conditional."
+            ),
             "trade_date": str(trade_date),
             "past_context": past_context,
             "investment_debate_state": InvestDebateState(
@@ -50,14 +56,14 @@ class Propagator:
             ),
             "risk_debate_state": RiskDebateState(
                 {
-                    "aggressive_history": "",
-                    "conservative_history": "",
-                    "neutral_history": "",
+                    "market_liquidity_history": "",
+                    "fundamental_event_history": "",
+                    "portfolio_exposure_history": "",
                     "history": "",
                     "latest_speaker": "",
-                    "current_aggressive_response": "",
-                    "current_conservative_response": "",
-                    "current_neutral_response": "",
+                    "current_market_liquidity_response": "",
+                    "current_fundamental_event_response": "",
+                    "current_portfolio_exposure_response": "",
                     "judge_decision": "",
                     "count": 0,
                 }
@@ -67,6 +73,7 @@ class Propagator:
             "sentiment_report": "",
             "news_report": "",
             "information_audit_report": "",
+            "philosophy_reviews": [],
         }
 
     def get_graph_args(self, callbacks: list | None = None) -> dict[str, Any]:

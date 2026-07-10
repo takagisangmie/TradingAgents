@@ -1,6 +1,6 @@
 """Reusable report-tree writer shared by the CLI and the programmatic API.
 
-Writes a run's per-section markdown (analysts, research, trading, risk,
+Writes a run's per-section markdown (analysts, methodology reviews, research, risk,
 portfolio) plus a consolidated ``complete_report.md`` under ``save_path``. The
 CLI and ``TradingAgentsGraph.save_reports`` both call this, so a headless / API
 run produces the same on-disk report tree a CLI run does.
@@ -47,9 +47,26 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")
 
-    # 2. Research
+    # 2. Investment-methodology review
+    philosophy_reviews = final_state.get("philosophy_reviews", [])
+    if philosophy_reviews:
+        philosophy_dir = save_path / "2_philosophy"
+        philosophy_dir.mkdir(exist_ok=True)
+        philosophy_parts = []
+        for review in philosophy_reviews:
+            key = review.get("key", "reviewer")
+            reviewer = review.get("reviewer", "Methodology Reviewer")
+            content = review.get("content", "")
+            (philosophy_dir / f"{key}.md").write_text(content, encoding="utf-8")
+            philosophy_parts.append((reviewer, content))
+        content = "\n\n".join(
+            f"### {name}\n{text}" for name, text in philosophy_parts
+        )
+        sections.append(f"## II. Investment Methodology Reviews\n\n{content}")
+
+    # 3. Research
     if final_state.get("investment_debate_state"):
-        research_dir = save_path / "2_research"
+        research_dir = save_path / "3_research"
         debate = final_state["investment_debate_state"]
         research_parts = []
         if debate.get("bull_history"):
@@ -66,35 +83,28 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
             research_parts.append(("Research Manager", debate["judge_decision"]))
         if research_parts:
             content = "\n\n".join(f"### {name}\n{text}" for name, text in research_parts)
-            sections.append(f"## II. Research Team Decision\n\n{content}")
-
-    # 3. Trading
-    if final_state.get("trader_investment_plan"):
-        trading_dir = save_path / "3_trading"
-        trading_dir.mkdir(exist_ok=True)
-        (trading_dir / "trader.md").write_text(final_state["trader_investment_plan"], encoding="utf-8")
-        sections.append(f"## III. Trading Team Plan\n\n### Trader\n{final_state['trader_investment_plan']}")
+            sections.append(f"## III. Research Team Decision\n\n{content}")
 
     # 4. Risk Management
     if final_state.get("risk_debate_state"):
         risk_dir = save_path / "4_risk"
         risk = final_state["risk_debate_state"]
         risk_parts = []
-        if risk.get("aggressive_history"):
+        if risk.get("market_liquidity_history"):
             risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "aggressive.md").write_text(risk["aggressive_history"], encoding="utf-8")
-            risk_parts.append(("Aggressive Analyst", risk["aggressive_history"]))
-        if risk.get("conservative_history"):
+            (risk_dir / "market_liquidity.md").write_text(risk["market_liquidity_history"], encoding="utf-8")
+            risk_parts.append(("Market & Liquidity Risk Analyst", risk["market_liquidity_history"]))
+        if risk.get("fundamental_event_history"):
             risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "conservative.md").write_text(risk["conservative_history"], encoding="utf-8")
-            risk_parts.append(("Conservative Analyst", risk["conservative_history"]))
-        if risk.get("neutral_history"):
+            (risk_dir / "fundamental_event.md").write_text(risk["fundamental_event_history"], encoding="utf-8")
+            risk_parts.append(("Fundamental & Event Risk Analyst", risk["fundamental_event_history"]))
+        if risk.get("portfolio_exposure_history"):
             risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "neutral.md").write_text(risk["neutral_history"], encoding="utf-8")
-            risk_parts.append(("Neutral Analyst", risk["neutral_history"]))
+            (risk_dir / "portfolio_exposure.md").write_text(risk["portfolio_exposure_history"], encoding="utf-8")
+            risk_parts.append(("Portfolio Exposure Risk Analyst", risk["portfolio_exposure_history"]))
         if risk_parts:
             content = "\n\n".join(f"### {name}\n{text}" for name, text in risk_parts)
-            sections.append(f"## IV. Risk Management Team Decision\n\n{content}")
+            sections.append(f"## IV. Risk Management Review\n\n{content}")
 
         # 5. Portfolio Manager
         if risk.get("judge_decision"):

@@ -3,7 +3,7 @@
 The framework's primary artifact is still prose: each agent's natural-language
 reasoning is what users read in the saved markdown reports and what the
 downstream agents read as context.  Structured output is layered onto the
-three decision-making agents (Research Manager, Trader, Portfolio Manager)
+two decision-making agents (Research Manager and Portfolio Manager)
 so that:
 
 - Their outputs follow consistent section headers across runs and providers
@@ -51,32 +51,105 @@ class PortfolioRating(str, Enum):
     SELL = "Sell"
 
 
-class TraderAction(str, Enum):
-    """3-tier transaction direction used by the Trader.
-
-    The Trader's job is to translate the Research Manager's investment plan
-    into a concrete transaction proposal: should the desk execute a Buy, a
-    Sell, or sit on Hold this round.  Position sizing and the nuanced
-    Overweight / Underweight calls happen later at the Portfolio Manager.
-    """
-
-    BUY = "Buy"
-    HOLD = "Hold"
-    SELL = "Sell"
-
-
 # ---------------------------------------------------------------------------
 # Research Manager
 # ---------------------------------------------------------------------------
 
 
+class EvidenceItem(BaseModel):
+    """A traceable claim used in an investment decision."""
+
+    claim: str = Field(description="A material factual or inferential claim.")
+    evidence: str = Field(description="The concrete observation supporting the claim.")
+    source: str = Field(description="The report or debate turn containing the evidence.")
+    confidence: Literal["low", "medium", "high"] = Field(
+        description="Confidence after accounting for audit warnings and missing data."
+    )
+    counterevidence: str | None = Field(
+        default=None,
+        description="Material evidence against the claim, or null when none was found.",
+    )
+
+
+class PhilosophyReview(BaseModel):
+    """Common contract for independent investment-methodology reviewers."""
+
+    circle_of_competence: Literal["inside", "outside", "uncertain"] = Field(
+        description="Whether the available evidence supports understanding the business."
+    )
+    business_quality: Literal["strong", "acceptable", "weak", "uncertain"] = Field(
+        description="Business quality under the assigned methodology."
+    )
+    management_quality: Literal[
+        "strong", "acceptable", "concerning", "unknown"
+    ] = Field(description="Management and capital-allocation assessment.")
+    valuation_view: Literal[
+        "attractive", "fair", "expensive", "insufficient_data"
+    ] = Field(description="Valuation assessment without fabricated precision.")
+    recommendation: Literal["pass", "watch", "reject", "abstain"] = Field(
+        description="Methodology review outcome; this is not a portfolio action."
+    )
+    thesis: str = Field(description="Concise methodology-specific investment thesis.")
+    evidence_ledger: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Traceable claims supporting or challenging the thesis.",
+    )
+    disconfirming_evidence: list[str] = Field(
+        default_factory=list,
+        description="Strongest evidence against the thesis.",
+    )
+    missing_information: list[str] = Field(
+        default_factory=list,
+        description="Information required before confidence can increase.",
+    )
+    invalidation_conditions: list[str] = Field(
+        default_factory=list,
+        description="Observable conditions that would invalidate the thesis.",
+    )
+
+
+def render_philosophy_review(
+    review: PhilosophyReview,
+    reviewer_name: str,
+    framework_name: str,
+) -> str:
+    """Render a methodology review with deterministic identity metadata."""
+    parts = [
+        f"**Reviewer**: {reviewer_name}",
+        f"**Framework**: {framework_name}",
+        f"**Methodology Outcome**: {review.recommendation.capitalize()}",
+        f"**Circle of Competence**: {review.circle_of_competence.capitalize()}",
+        f"**Business Quality**: {review.business_quality.capitalize()}",
+        f"**Management Quality**: {review.management_quality.capitalize()}",
+        f"**Valuation View**: {review.valuation_view.replace('_', ' ').title()}",
+        "",
+        f"**Thesis**: {review.thesis}",
+    ]
+    if review.evidence_ledger:
+        parts.extend(["", "**Evidence Ledger**:"])
+        for item in review.evidence_ledger:
+            counter = item.counterevidence or "None identified"
+            parts.append(
+                f"- {item.claim} | Evidence: {item.evidence} | Source: {item.source} "
+                f"| Confidence: {item.confidence} | Counterevidence: {counter}"
+            )
+    for heading, values in (
+        ("Disconfirming Evidence", review.disconfirming_evidence),
+        ("Missing Information", review.missing_information),
+        ("Invalidation Conditions", review.invalidation_conditions),
+    ):
+        if values:
+            parts.extend(["", f"**{heading}**:"])
+            parts.extend(f"- {value}" for value in values)
+    return "\n".join(parts)
+
+
 class ResearchPlan(BaseModel):
     """Structured investment plan produced by the Research Manager.
 
-    Hand-off to the Trader: the recommendation pins the directional view,
-    the rationale captures which side of the bull/bear debate carried the
-    argument, and the strategic actions translate that into concrete
-    instructions the trader can execute against.
+    The recommendation pins the directional view, the rationale captures
+    which evidence carried the debate, and strategic actions remain
+    conditional on the supplied portfolio context.
     """
 
     recommendation: PortfolioRating = Field(
@@ -96,87 +169,33 @@ class ResearchPlan(BaseModel):
     )
     strategic_actions: str = Field(
         description=(
-            "Concrete steps for the trader to implement the recommendation, "
-            "including position sizing guidance consistent with the rating."
+            "Concrete, constraint-aware next steps. If portfolio context is "
+            "missing, state which inputs are required instead of inventing sizing."
         ),
+    )
+    evidence_ledger: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Key claims with evidence, source, confidence, and counterevidence.",
     )
 
 
 def render_research_plan(plan: ResearchPlan) -> str:
-    """Render a ResearchPlan to markdown for storage and the trader's prompt context."""
-    return "\n".join([
+    """Render a ResearchPlan to markdown for storage and downstream review."""
+    parts = [
         f"**Recommendation**: {plan.recommendation.value}",
         "",
         f"**Rationale**: {plan.rationale}",
         "",
         f"**Strategic Actions**: {plan.strategic_actions}",
-    ])
-
-
-# ---------------------------------------------------------------------------
-# Trader
-# ---------------------------------------------------------------------------
-
-
-class TraderProposal(BaseModel):
-    """Structured transaction proposal produced by the Trader.
-
-    The trader reads the Research Manager's investment plan and the analyst
-    reports, then turns them into a concrete transaction: what action to
-    take, the reasoning that justifies it, and the practical levels for
-    entry, stop-loss, and sizing.
-    """
-
-    action: TraderAction = Field(
-        description="The transaction direction. Exactly one of Buy / Hold / Sell.",
-    )
-    reasoning: str = Field(
-        description=(
-            "The case for this action, anchored in the analysts' reports and "
-            "the research plan. Two to four sentences."
-        ),
-    )
-    entry_price: float | None = Field(
-        default=None,
-        description="Optional entry price target in the instrument's quote currency.",
-    )
-    stop_loss: float | None = Field(
-        default=None,
-        description="Optional stop-loss price in the instrument's quote currency.",
-    )
-    position_sizing: str | None = Field(
-        default=None,
-        description="Optional sizing guidance, e.g. '5% of portfolio'.",
-    )
-
-    @field_validator("entry_price", "stop_loss", mode="before")
-    @classmethod
-    def _nullish_float_to_none(cls, v):
-        return _coerce_optional_float(v)
-
-
-def render_trader_proposal(proposal: TraderProposal) -> str:
-    """Render a TraderProposal to markdown.
-
-    The trailing ``FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**`` line is
-    preserved for backward compatibility with the analyst stop-signal text
-    and any external code that greps for it.
-    """
-    parts = [
-        f"**Action**: {proposal.action.value}",
-        "",
-        f"**Reasoning**: {proposal.reasoning}",
     ]
-    if proposal.entry_price is not None:
-        parts.extend(["", f"**Entry Price**: {proposal.entry_price}"])
-    if proposal.stop_loss is not None:
-        parts.extend(["", f"**Stop Loss**: {proposal.stop_loss}"])
-    if proposal.position_sizing:
-        parts.extend(["", f"**Position Sizing**: {proposal.position_sizing}"])
-    parts.extend([
-        "",
-        f"FINAL TRANSACTION PROPOSAL: **{proposal.action.value.upper()}**",
-    ])
+    if plan.evidence_ledger:
+        parts.extend(["", "**Evidence Ledger**:"])
+        for item in plan.evidence_ledger:
+            counter = item.counterevidence or "None identified"
+            parts.append(
+                f"- {item.claim} | Evidence: {item.evidence} | Source: {item.source} "
+                f"| Confidence: {item.confidence} | Counterevidence: {counter}"
+            )
     return "\n".join(parts)
 
 
@@ -320,7 +339,7 @@ class SentimentReport(BaseModel):
             "(5) a markdown table summarising key sentiment signals, their "
             "direction, source, and supporting evidence. "
             "Keep it informative and substantive: develop each section thoroughly "
-            "with concrete evidence so every point adds new signal for the trader."
+            "with concrete evidence so every point adds new decision signal."
         ),
     )
 

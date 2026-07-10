@@ -5,14 +5,11 @@ from tradingagents.agents.utils.agent_utils import (
 )
 
 
-def create_neutral_debator(llm):
-    def neutral_node(state) -> dict:
+def create_portfolio_exposure_risk_analyst(llm):
+    def portfolio_exposure_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
         history = risk_debate_state.get("history", "")
-        neutral_history = risk_debate_state.get("neutral_history", "")
-
-        current_aggressive_response = risk_debate_state.get("current_aggressive_response", "")
-        current_conservative_response = risk_debate_state.get("current_conservative_response", "")
+        role_history = risk_debate_state.get("portfolio_exposure_history", "")
 
         market_research_report = state["market_report"]
         sentiment_report = state["sentiment_report"]
@@ -20,41 +17,48 @@ def create_neutral_debator(llm):
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
 
-        trader_decision = state["trader_investment_plan"]
+        research_plan = state["investment_plan"]
+        portfolio_context = state.get("portfolio_context", "")
+        audit_report = state.get("information_audit_report", "")
 
-        prompt = f"""As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies.Here is the trader's decision:
+        prompt = f"""You are the Portfolio Exposure Risk Analyst. Independently assess how the research plan would affect an actual portfolio. Cover current-position dependence, concentration, sector/factor/currency exposure, correlation, diversification, risk budget, horizon mismatch, turnover, and transaction costs. Do not invent portfolio facts when context is absent.
 
-{trader_decision}
-
-Your task is to challenge both the Aggressive and Conservative Analysts, pointing out where each perspective may be overly optimistic or overly cautious. Use insights from the following data sources to support a moderate, sustainable strategy to adjust the trader's decision:
+Research plan: {research_plan}
+Portfolio context and constraints: {portfolio_context}
 
 {instrument_context}
 Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
-Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the conservative analyst: {current_conservative_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
+Information Audit: {audit_report}
+Other completed risk reviews: {history}
 
-Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting.""" + get_market_profile_instruction() + get_language_instruction()
+Return: identified exposures, supporting evidence and source, confidence, conditional sizing or mitigation rules, and the portfolio fields still required for a firm decision.""" + get_market_profile_instruction() + get_language_instruction()
 
         response = llm.invoke(prompt)
 
-        argument = f"Neutral Analyst: {response.content}"
+        argument = f"Portfolio Exposure Risk Analyst: {response.content}"
 
         new_risk_debate_state = {
             "history": history + "\n" + argument,
-            "aggressive_history": risk_debate_state.get("aggressive_history", ""),
-            "conservative_history": risk_debate_state.get("conservative_history", ""),
-            "neutral_history": neutral_history + "\n" + argument,
-            "latest_speaker": "Neutral",
-            "current_aggressive_response": risk_debate_state.get(
-                "current_aggressive_response", ""
+            "market_liquidity_history": risk_debate_state.get("market_liquidity_history", ""),
+            "fundamental_event_history": risk_debate_state.get("fundamental_event_history", ""),
+            "portfolio_exposure_history": role_history + "\n" + argument,
+            "latest_speaker": "Portfolio Exposure",
+            "current_market_liquidity_response": risk_debate_state.get(
+                "current_market_liquidity_response", ""
             ),
-            "current_conservative_response": risk_debate_state.get("current_conservative_response", ""),
-            "current_neutral_response": argument,
+            "current_fundamental_event_response": risk_debate_state.get("current_fundamental_event_response", ""),
+            "current_portfolio_exposure_response": argument,
             "count": risk_debate_state["count"] + 1,
         }
 
         return {"risk_debate_state": new_risk_debate_state}
 
-    return neutral_node
+    return portfolio_exposure_node
+
+
+def create_neutral_debator(llm):
+    """Deprecated compatibility alias."""
+    return create_portfolio_exposure_risk_analyst(llm)

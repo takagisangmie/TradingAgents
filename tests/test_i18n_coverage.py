@@ -26,10 +26,10 @@ REPORT_AGENTS = [
     "researchers/bear_researcher.py",
     "managers/research_manager.py",
     "managers/portfolio_manager.py",
+    "philosophy/reviewers.py",
     "risk_mgmt/aggressive_debator.py",
     "risk_mgmt/conservative_debator.py",
     "risk_mgmt/neutral_debator.py",
-    "trader/trader.py",
 ]
 
 

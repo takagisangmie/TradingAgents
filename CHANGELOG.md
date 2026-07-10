@@ -10,6 +10,10 @@ Breaking changes within the 0.x line are called out explicitly.
 
 ### Added
 
+- Six parallel, independent investment-methodology employee roles inspired by
+  Buffett, Duan Yongping, Benjamin Graham, Philip Fisher, Peter Lynch, and
+  Howard Marks. Their bounded Pass/Watch/Reject/Abstain reviews feed research
+  and portfolio decisions without impersonation or portfolio authority.
 - A-share-first market profile backed by the documented Tushare HTTP API for
   prices, indicators, point-in-time financials, news, macro data, identity, and
   CSI 300-relative outcome evaluation.
@@ -20,6 +24,16 @@ Breaking changes within the 0.x line are called out explicitly.
 
 ### Changed
 
+- **Breaking:** removed the Trader node and its three-tier proposal schema. The
+  Research Manager now hands its five-tier plan directly to three independent
+  domain risk reviewers: Market & Liquidity, Fundamental & Event, and Portfolio
+  Exposure.
+- Bull/bear research now starts with independent opening theses followed by
+  symmetric cross-examination. Research decisions include a structured evidence
+  ledger with source, confidence, and counterevidence.
+- Portfolio decisions can consume explicit holdings, cash, risk budget, horizon,
+  costs, and constraints through `portfolio_context`; final review also receives
+  the raw analyst reports and information-audit result.
 - Default symbols, output language, benchmark, prompts, and trading constraints
   now target mainland China A-shares.
 - Default LLM provider is BigModel China (`glm-cn`), with `glm-5.2` used for

@@ -13,8 +13,14 @@ def _state():
     return {
         "market_report": "MKT",
         "news_report": "NEWS",
+        "philosophy_reviews": [
+            {
+                "key": "buffett",
+                "reviewer": "Buffett Methodology Reviewer",
+                "content": "BUFFETT REVIEW",
+            }
+        ],
         "investment_debate_state": {"judge_decision": "RM PLAN"},
-        "trader_investment_plan": "TRADE",
         "risk_debate_state": {"judge_decision": "PM DECISION"},
     }
 
@@ -25,8 +31,9 @@ def test_write_report_tree_creates_files(tmp_path):
     assert out.name == "complete_report.md"
     assert (tmp_path / "1_analysts" / "market.md").read_text() == "MKT"
     assert (tmp_path / "1_analysts" / "news.md").read_text() == "NEWS"
-    assert (tmp_path / "2_research" / "manager.md").read_text() == "RM PLAN"
-    assert (tmp_path / "3_trading" / "trader.md").read_text() == "TRADE"
+    assert (tmp_path / "2_philosophy" / "buffett.md").read_text() == "BUFFETT REVIEW"
+    assert (tmp_path / "3_research" / "manager.md").read_text() == "RM PLAN"
+    assert not (tmp_path / "3_trading").exists()
     assert (tmp_path / "5_portfolio" / "decision.md").read_text() == "PM DECISION"
     complete = out.read_text()
     assert "Trading Analysis Report: AAPL" in complete

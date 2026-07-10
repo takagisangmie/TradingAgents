@@ -50,13 +50,12 @@ class ConditionalLogic:
         return "Msg Clear Fundamentals"
 
     def should_continue_debate(self, state: AgentState) -> str:
-        """Determine if debate should continue."""
-
-        if (
-            state["investment_debate_state"]["count"] >= 2 * self.max_debate_rounds
-        ):  # 3 rounds of back-and-forth between 2 agents
+        """Run independent openings, then symmetric bull/bear cross-examination."""
+        count = state["investment_debate_state"]["count"]
+        # Two opening statements plus one rebuttal from each side per round.
+        if count >= 2 + (2 * self.max_debate_rounds):
             return "Research Manager"
-        if state["investment_debate_state"]["current_response"].startswith("Bull"):
+        if count % 2 == 1:
             return "Bear Researcher"
         return "Bull Researcher"
 
@@ -64,10 +63,10 @@ class ConditionalLogic:
         """Determine if risk analysis should continue."""
         if (
             state["risk_debate_state"]["count"] >= 3 * self.max_risk_discuss_rounds
-        ):  # 3 rounds of back-and-forth between 3 agents
+        ):  # one domain review from each of 3 agents per cycle
             return "Portfolio Manager"
-        if state["risk_debate_state"]["latest_speaker"].startswith("Aggressive"):
-            return "Conservative Analyst"
-        if state["risk_debate_state"]["latest_speaker"].startswith("Conservative"):
-            return "Neutral Analyst"
-        return "Aggressive Analyst"
+        if state["risk_debate_state"]["latest_speaker"].startswith("Market"):
+            return "Fundamental & Event Risk Analyst"
+        if state["risk_debate_state"]["latest_speaker"].startswith("Fundamental"):
+            return "Portfolio Exposure Risk Analyst"
+        return "Market & Liquidity Risk Analyst"

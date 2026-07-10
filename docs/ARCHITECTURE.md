@@ -19,9 +19,14 @@ before an LLM receives it. Suspicious instruction-like lines are replaced with
 `REDACTED_BY_INFORMATION_AUDITOR` and an `INFORMATION_SECURITY_WARNING`.
 
 The Information Auditor graph node runs after selected analysts and before the
-bull/bear debate. It summarizes prompt-injection findings, empty reports,
+six parallel investment-methodology reviewers and bull/bear debate. It
+summarizes prompt-injection findings, empty reports,
 missing data, rate limits, permission failures, and community-site risk
-controls. Downstream researchers must lower confidence for flagged sources.
+controls. Each methodology reviewer reads the same audited reports and writes
+only to the append-reduced `philosophy_reviews` state, so parallel branches
+cannot overwrite or anchor one another. LangGraph joins all six branches before
+the bull/bear research stage. Downstream researchers must lower confidence for
+flagged sources.
 
 ## Adding a Data Vendor
 

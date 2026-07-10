@@ -202,6 +202,7 @@ class TestCheckpointSignature(unittest.TestCase):
         base = g._run_signature("stock")
 
         self.assertNotEqual(base, g._run_signature("crypto"))     # asset mode
+        self.assertNotEqual(base, g._run_signature("stock", "position: 5%"))
         g.selected_analysts = ("market",)
         self.assertNotEqual(base, g._run_signature("stock"))      # analyst selection
         g.selected_analysts = ("market", "news")
